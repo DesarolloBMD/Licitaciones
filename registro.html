@@ -275,8 +275,13 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    // Enviar al mismo servidor (ruta relativa):
-    const API_BASE = ''; // mismo origen
+    // ========================
+    // CONFIG API (auto-switch)
+    // ========================
+    const RENDER_API = 'https://TU-SERVICIO.onrender.com/'; // ⬅️ REEMPLAZA por tu URL pública de Render
+    const usingGithub = location.hostname.endsWith('github.io') || location.protocol === 'file:';
+    const API_BASE = usingGithub ? RENDER_API : ''; // si estás en GitHub/file usa Render; si es mismo servicio, usa relativo
+
     const f  = document.getElementById('form-lic');
     const msg= document.getElementById('msg');
 
@@ -290,16 +295,17 @@
       }, false);
     })();
 
-    // Envío
+    // Envío con verificación de Content-Type para evitar "Unexpected token <"
     f.addEventListener('submit', async(e)=>{
       e.preventDefault();
       if(!f.checkValidity()) return;
       msg.textContent = 'Guardando…';
       try{
         const r = await fetch(API_BASE + 'licitacion_insertar.php', { method:'POST', body: new FormData(f) });
-        const j = await r.json();
-        if(!r.ok || !j.ok) throw new Error(j.error || 'Error al guardar');
-        msg.textContent = '¡Guardado! ID ' + (j.id ?? '');
+        const ct = (r.headers.get('content-type') || '').toLowerCase();
+        const data = ct.includes('application/json') ? await r.json() : { ok:false, error: await r.text(), status: r.status };
+        if(!r.ok || !data.ok) throw new Error(data.error || `HTTP ${r.status}`);
+        msg.textContent = '¡Guardado! ID ' + (data.id ?? '');
         f.reset(); document.querySelectorAll('#form-lic .btn-check').forEach(b=>b.checked=false);
         document.getElementById('pctBar').style.width = '0%';
         document.getElementById('pctLabel').textContent = '0%';
