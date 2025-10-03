@@ -1,0 +1,132 @@
+/* Fondo blanco para el panel derecho */
+.main { background: #fff; }
+
+/* ===== CTA creativo para abrir Inbox ===== */
+.cta-wrap {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+
+.cta-inbox {
+  --g1: #0B4912;
+  --g2: #1c7b27;
+  --g3: #3fb14d;
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .75rem 1.1rem;
+  border: 0;
+  border-radius: .9rem;
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: .2px;
+  cursor: pointer;
+  background: linear-gradient(135deg, var(--g1), var(--g2) 60%, var(--g3));
+  box-shadow: 0 .5rem 1.25rem rgba(11, 73, 18, .25);
+  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+  isolation: isolate;
+}
+
+.cta-inbox:focus-visible {
+  outline: 3px solid rgba(11, 73, 18, .35);
+  outline-offset: 2px;
+}
+
+.cta-inbox:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 .8rem 1.6rem rgba(11, 73, 18, .28);
+  filter: brightness(1.02);
+}
+
+.cta-inbox:active {
+  transform: translateY(0);
+  box-shadow: 0 .35rem .9rem rgba(11, 73, 18, .2);
+}
+
+/* Icono animado */
+.cta-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  font-size: 1.1rem;
+  transition: transform .2s ease;
+}
+.cta-inbox:hover .cta-icon { transform: translateX(2px); }
+
+/* Texto */
+.cta-text { position: relative; z-index: 2; }
+
+/* “Sheen” (brillo) */
+.cta-sheen {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.cta-sheen::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -30%;
+  width: 40%;
+  height: 200%;
+  transform: rotate(20deg);
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.22) 45%, rgba(255,255,255,0) 100%);
+  filter: blur(4px);
+  animation: sheen 3.2s linear infinite;
+}
+@keyframes sheen {
+  0%   { transform: translateX(-120%) rotate(20deg); }
+  60%  { transform: translateX(140%)  rotate(20deg); }
+  100% { transform: translateX(140%)  rotate(20deg); }
+}
+
+/* Chispas/burst al clic */
+.cta-spark { position: absolute; inset: 0; pointer-events: none; }
+.cta-inbox.clicked .cta-spark::before,
+.cta-inbox.clicked .cta-spark::after {
+  content: "";
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 8px; height: 8px;
+  background: #fff;
+  border-radius: 50%;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.6);
+  animation: burst .6s ease forwards;
+}
+.cta-inbox.clicked .cta-spark::after {
+  width: 12px; height: 12px;
+  background: #E8EDF7;
+  animation-delay: .05s;
+}
+@keyframes burst {
+  0%   { opacity: .8; transform: translate(-50%, -50%) scale(0.6); }
+  80%  { opacity: .4; transform: translate(-50%, -90%) scale(2.2); }
+  100% { opacity: 0;   transform: translate(-50%, -110%) scale(2.6); }
+}
+
+/* Enlace fallback en forma de píldora */
+.cta-fallback {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .55rem .8rem;
+  border: 1px dashed #cfd8e3;
+  border-radius: 999px;
+  color: #1b2a4a;
+  text-decoration: none;
+  transition: background .15s ease, border-color .15s ease;
+}
+.cta-fallback:hover {
+  background: #f8fafc;
+  border-color: #b8c4d6;
+}
+
+/* Topbar móvil */
+.topbar { background: #fff; }

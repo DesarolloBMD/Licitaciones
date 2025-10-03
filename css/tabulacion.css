@@ -1,0 +1,85 @@
+/* ===== Ajustes específicos para Tabulación (login) ===== */
+
+/* Fondo blanco en el panel principal */
+.main {
+  background: #fff;
+}
+
+/* Contenedor del login */
+.login-wrap {
+  width: 100%;
+  max-width: 440px;
+  margin: 2rem auto;
+}
+
+/* Tarjeta del login */
+.login-card {
+  border-radius: .9rem;
+  overflow: hidden;
+}
+
+/* Mini marca (icono + texto arriba del login) */
+.brand-mini {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .6rem;
+  color: #1b2a4a;
+}
+.brand-mini .logo {
+  width: 32px;
+  height: 32px;
+  border-radius: .6rem;
+  background: var(--acento);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 1rem;
+}
+
+/* Título */
+.login-card .h5,
+.login-card h1 {
+  color: #1b2a4a;
+}
+
+/* Inputs */
+#loginForm .form-control {
+  border-radius: .6rem;
+}
+#loginForm .form-control:focus {
+  border-color: var(--acento);
+  box-shadow: 0 0 0 .2rem rgba(11, 73, 18, .15);  /* #0B4912 con transparencia */
+}
+
+/* Botón principal */
+#loginForm .btn.btn-acento {
+  border-radius: .6rem;
+  padding: .6rem .9rem;
+  font-weight: 600;
+}
+
+/* Mensaje de error */
+#alertBox {
+  border-radius: .6rem;
+}
+
+/* Texto de ayuda (demo credentials) */
+#loginForm .form-text {
+  color: #6b7b8f;
+}
+
+/* Ajustes finos del topbar en móvil (opcional) */
+.topbar {
+  background: #fff;
+}
+
+/* Responsive */
+@media (max-width: 575.98px) {
+  .login-wrap {
+    margin-top: 1rem;
+  }
+  .brand-mini {
+    font-size: .95rem;
+  }
+}

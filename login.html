@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Iniciar Sesión - UIA Sport GYM</title>
+  <link rel="stylesheet" href="css/bootstrap.min.css">
+  <style>
+    body {
+      background-color: #f4f4f4;
+      font-family: Arial, sans-serif;
+    }
+
+    .login-container {
+      max-width: 400px;
+      margin: 60px auto;
+      padding: 30px;
+      background-color: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0px 0px 15px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+
+    .login-container img {
+      width: 100px;
+      height: 100px;
+      margin-bottom: 20px;
+    }
+
+    .login-container h2 {
+      color: #DEA41E;
+      margin-bottom: 30px;
+    }
+
+    .form-control {
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .btn-login {
+      background-color: #DEA41E;
+      border: none;
+      border-radius: 8px;
+      color: white;
+      padding: 10px 20px;
+      font-weight: bold;
+      width: 100%;
+    }
+
+    .btn-login:hover {
+      background-color: #c38e18;
+    }
+
+    .back-link {
+      display: block;
+      margin-top: 20px;
+      color: #555;
+      text-decoration: none;
+    }
+
+    .back-link:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="login-container">
+    <img src="Recursos/General/icono_login.png" alt="Icono UIA Sport GYM">
+    <h2>Iniciar Sesión</h2>
+    
+    <form action="PHP/procesar_login.php" method="POST">
+      <input type="text" name="usuario" class="form-control" placeholder="Usuario" required>
+      <input type="password" name="contrasena" class="form-control" placeholder="Contraseña" required>
+      <button type="submit" class="btn btn-login">Ingresar</button>
+    </form>
+
+    <a href="Registro de Atleta.html" class="back-link">¿No tienes cuenta? Regístrate aquí</a>
+    <a href="index.html" class="back-link">Volver al inicio</a>
+  </div>
+
+</body>
+</html>
