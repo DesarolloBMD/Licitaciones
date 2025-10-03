@@ -278,9 +278,9 @@
     // ========================
     // CONFIG API (auto-switch)
     // ========================
-    const RENDER_API = 'https://TU-SERVICIO.onrender.com/'; // ⬅️ REEMPLAZA por tu URL pública de Render
+    const RENDER_API = 'https://licitaciones-5kie.onrender.com/'; // ✅ tu URL pública
     const usingGithub = location.hostname.endsWith('github.io') || location.protocol === 'file:';
-    const API_BASE = usingGithub ? RENDER_API : ''; // si estás en GitHub/file usa Render; si es mismo servicio, usa relativo
+    const API_BASE = usingGithub ? RENDER_API : ''; // GitHub/file -> Render; mismo servicio -> relativo
 
     const f  = document.getElementById('form-lic');
     const msg= document.getElementById('msg');
@@ -295,7 +295,7 @@
       }, false);
     })();
 
-    // Envío con verificación de Content-Type para evitar "Unexpected token <"
+    // Envío con verificación de Content-Type
     f.addEventListener('submit', async(e)=>{
       e.preventDefault();
       if(!f.checkValidity()) return;
