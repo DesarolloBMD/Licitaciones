@@ -157,18 +157,20 @@
     </div>
   </div>
 
-  <!-- Bootstrap JS -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    // API BASE: auto-switch (GitHub/file -> Render; mismo servidor -> /API/)
-    const RENDER_API = 'https://licitaciones-5kie.onrender.com/API/';
-    const usingGithub = location.hostname.endsWith('github.io') || location.protocol === 'file:';
-    const API_BASE = usingGithub ? RENDER_API : '/API/';
+ <!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  // Base: raíz del servicio (sin /API/)
+  const RENDER_API = 'https://licitaciones-5kie.onrender.com/'; 
+  const usingGithub = location.hostname.endsWith('github.io') || location.protocol === 'file:';
+  const API_BASE = usingGithub ? RENDER_API : '/';
 
-    const API_BUSCAR = API_BASE + 'licitaciones_buscar.php';
-    const API_CARGAR = API_BASE + 'licitacion_cargar.php';
-    const API_EDITAR = API_BASE + 'licitacion_actualizar.php';
-    const API_BORRAR = API_BASE + 'licitacion_borrar.php';
+  const API_BUSCAR = API_BASE + 'licitaciones_buscar.php';
+  const API_CARGAR = API_BASE + 'licitacion_cargar.php';
+  const API_EDITAR = API_BASE + 'licitacion_actualizar.php';
+  const API_BORRAR = API_BASE + 'licitacion_borrar.php';
+</script>
+
 
     const $ = (s, d=document)=>d.querySelector(s);
     function escapeHTML(s){ return (s??'').toString().replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
