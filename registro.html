@@ -55,7 +55,7 @@
           </div>
         </div>
         <span class="badge badge-soft rounded-pill px-3 py-2">
-          <i class="bi bi-shield-lock me-2"></i>Sesión segura
+          <i class="bi bi-shield-lock me-2"></i>BMD Busines Partners
         </span>
       </div>
     </div>
@@ -307,7 +307,7 @@
         const ct = (r.headers.get('content-type') || '').toLowerCase();
         const data = ct.includes('application/json') ? await r.json() : { ok:false, error: await r.text(), status: r.status };
         if(!r.ok || !data.ok) throw new Error(data.error || `HTTP ${r.status}`);
-        msg.textContent = '¡Guardado! ID ' + (data.id ?? '');
+        msg.textContent = '¡Licitaciòn Guardada con Exito!' + (data.id ?? '');
         f.reset(); document.querySelectorAll('#form-lic .btn-check').forEach(b=>b.checked=false);
         document.getElementById('pctBar').style.width = '0%';
         document.getElementById('pctLabel').textContent = '0%';
