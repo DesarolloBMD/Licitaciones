@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 <!doctype html>
 <html lang="es">
 <head>
@@ -50,7 +49,7 @@
       <div class="col-6 col-md-3">
         <div class="card card-kpi p-3">
           <div class="title">Perdidas</div>
-        <div class="display-6 fw-bold" id="kpi-perdidas">—</div>
+          <div class="display-6 fw-bold" id="kpi-perdidas">—</div>
         </div>
       </div>
       <div class="col-6 col-md-3">
@@ -194,10 +193,7 @@
     const API_RESUM  = API_BASE + 'licitaciones_resumen.php';
     const API_UPDATE = API_BASE + 'licitacion_actualizar.php';
 
-    // ===== Estado UI =====
     let page = 1, pageSize = 20, total = 0, currentData = [];
-
-    // ===== Util =====
     const $ = (s, d=document)=>d.querySelector(s);
     function fmtDateTime(v){ return v ? new Date(v).toLocaleString('es-CR') : '—'; }
     function paramsFromFilters(){
@@ -218,7 +214,6 @@
       return p;
     }
 
-    // ===== Cargar resumen =====
     async function cargarResumen(){
       const r = await fetch(API_RESUM + '?' + paramsFromFilters().toString());
       const j = await r.json();
@@ -231,13 +226,11 @@
       $('#kpi-finalizadas').textContent= j.por_estado.finalizada;
     }
 
-    // ===== Cargar tabla =====
     async function cargarTabla(){
       const r = await fetch(API_LIST + '?' + paramsFromFilters().toString());
       const j = await r.json();
       if(!j.ok) throw new Error(j.error || 'Error lista');
-      total = j.total;
-      currentData = j.rows;
+      total = j.total; currentData = j.rows;
       const tb = $('#tbody'); tb.innerHTML = '';
       j.rows.forEach(row=>{
         const tr = document.createElement('tr');
@@ -260,7 +253,6 @@
       $('#prev').disabled = (page<=1);
       $('#next').disabled = (fin>=total);
 
-      // Bind editar
       tb.querySelectorAll('button[data-id]').forEach(btn=>{
         btn.addEventListener('click', ()=>{
           const id = Number(btn.getAttribute('data-id'));
@@ -276,26 +268,22 @@
       });
     }
 
-    async function cargarTodo(){
-      await Promise.all([cargarResumen(), cargarTabla()]);
-    }
+    async function cargarTodo(){ await Promise.all([cargarResumen(), cargarTabla()]); }
 
-    // ===== Eventos =====
-    $('#filtros').addEventListener('submit', (e)=>{ e.preventDefault(); page=1; cargarTodo(); });
-    $('#prev').addEventListener('click', ()=>{ if(page>1){ page--; cargarTodo(); }});
-    $('#next').addEventListener('click', ()=>{ if(page*pageSize<total){ page++; cargarTodo(); }});
+    document.getElementById('filtros').addEventListener('submit', (e)=>{ e.preventDefault(); page=1; cargarTodo(); });
+    document.getElementById('prev').addEventListener('click', ()=>{ if(page>1){ page--; cargarTodo(); }});
+    document.getElementById('next').addEventListener('click', ()=>{ if(page*pageSize<total){ page++; cargarTodo(); }});
 
-    // Guardar edición
-    $('#btnGuardar').addEventListener('click', async ()=>{
-      const id = Number($('#e-id').value);
+    document.getElementById('btnGuardar')?.addEventListener('click', async ()=>{
+      const id = Number(document.getElementById('e-id').value);
       const payload = {
         id,
-        estado: $('#e-estado').value,
-        respuesta: $('#e-respuesta').value,
-        tipo: $('#e-tipo').value,
-        ultima_observacion: $('#e-ultima').value.trim()
+        estado: document.getElementById('e-estado').value,
+        respuesta: document.getElementById('e-respuesta').value,
+        tipo: document.getElementById('e-tipo').value,
+        ultima_observacion: document.getElementById('e-ultima').value.trim()
       };
-      $('#edit-msg').textContent = 'Guardando…';
+      document.getElementById('edit-msg').textContent = 'Guardando…';
       try{
         const r = await fetch(API_UPDATE, {
           method:'POST',
@@ -304,11 +292,11 @@
         });
         const j = await r.json();
         if(!r.ok || !j.ok) throw new Error(j.error || 'Error al guardar cambios');
-        $('#edit-msg').textContent = '¡Actualizado!';
-        setTimeout(()=>bootstrap.Modal.getInstance($('#modalEditar')).hide(), 400);
+        document.getElementById('edit-msg').textContent = '¡Actualizado!';
+        setTimeout(()=>bootstrap.Modal.getInstance(document.getElementById('modalEditar')).hide(), 400);
         await cargarTodo();
       }catch(err){
-        $('#edit-msg').textContent = '⚠ ' + err.message;
+        document.getElementById('edit-msg').textContent = '⚠ ' + err.message;
       }
     });
 
@@ -316,275 +304,3 @@
   </script>
 </body>
 </html>
-=======
-<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Gestión de Licitaciones — Tabulación</title>
-
-  <!-- Bootstrap 5 -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <!-- Bootstrap Icons -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-
-  <!-- Estilos globales y específicos -->
-  <link rel="stylesheet" href="CSS/main.css">
-  <link rel="stylesheet" href="CSS/tabulacion.css">
-</head>
-<body>
-  <div class="d-flex">
-    <!-- ===== Sidebar ===== -->
-    <aside id="sidebar" class="sidebar">
-      <a href="index.html" class="brand">
-        <span class="logo"><i class="bi bi-graph-up"></i></span>
-        <span>Gestión de Licitaciones</span>
-      </a>
-
-      <hr class="my-3">
-
-      <nav class="nav flex-column menu">
-        <a class="nav-link" href="registro.html">
-          <i class="bi bi-journal-text"></i>
-          <span>Registro de licitaciones</span>
-        </a>
-        <a class="nav-link active" href="tabulacion.html" aria-current="page">
-          <i class="bi bi-table"></i>
-          <span>Tabulación</span>
-        </a>
-        <a class="nav-link" href="bandeja.html">
-          <i class="bi bi-inbox"></i>
-          <span>Bandeja de entrada</span>
-        </a>
-        <a class="nav-link" href="drive.html">
-          <i class="bi bi-cloud"></i>
-          <span>Drive</span>
-        </a>
-        <a class="nav-link" href="reporteria.html">
-          <i class="bi bi-bar-chart"></i>
-          <span>Reportería</span>
-        </a>
-      </nav>
-
-      <hr class="my-3">
-      <div class="text-white-50 small">
-        <div class="d-flex align-items-center gap-2">
-          <i class="bi bi-shield-lock"></i>
-          <span>Sesión segura</span>
-        </div>
-      </div>
-    </aside>
-
-    <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
-
-    <!-- ===== Main ===== -->
-    <main class="main">
-      <!-- Topbar móvil -->
-      <div class="topbar px-3 py-2 d-lg-none d-flex align-items-center justify-content-between bg-white border-bottom w-100">
-        <button id="btnToggle" class="btn btn-sm btn-acento"><i class="bi bi-list"></i> Menú</button>
-        <strong class="ms-2">Tabulación</strong>
-      </div>
-
-      <div class="container py-4">
-        <div class="login-wrap">
-          <div class="text-center mb-3 brand-mini">
-            <span class="logo"><i class="bi bi-graph-up"></i></span>
-            <strong>Acceso a Tablas (JotForm)</strong>
-          </div>
-
-          <!-- ALERTAS -->
-          <div id="alertBox" class="alert alert-danger d-none" role="alert">
-            Usuario o contraseña incorrectos.
-          </div>
-          <div id="alertRegOK" class="alert alert-success d-none" role="alert">
-            Usuario creado correctamente.
-          </div>
-          <div id="alertRegErr" class="alert alert-danger d-none" role="alert">
-            No se pudo crear el usuario. Revisa los datos.
-          </div>
-
-          <div class="row g-3">
-            <!-- Card: Iniciar sesión -->
-            <div class="col-12 col-lg-6">
-              <div class="card shadow-sm border-0 login-card h-100">
-                <div class="card-body p-4">
-                  <h2 class="h5 mb-3">Iniciar sesión</h2>
-                  <form id="loginForm" class="needs-validation" novalidate>
-                    <div class="mb-3">
-                      <label for="user" class="form-label">Usuario o correo</label>
-                      <input type="text" class="form-control" id="user" placeholder="tu_usuario o correo@dominio.com" required>
-                      <div class="invalid-feedback">Ingresa el usuario o el correo.</div>
-                    </div>
-                    <div class="mb-3">
-                      <label for="pass" class="form-label">Contraseña</label>
-                      <div class="input-group">
-                        <input type="password" class="form-control" id="pass" placeholder="•••••••••••" required>
-                        <button type="button" class="btn btn-outline-secondary" id="togglePass" aria-label="Mostrar contraseña" aria-pressed="false">
-                          <i class="bi bi-eye" id="toggleIcon"></i>
-                        </button>
-                      </div>
-                      <div class="invalid-feedback">Ingresa la contraseña.</div>
-                    </div>
-                    <div class="d-grid gap-2">
-                      <button type="submit" class="btn btn-acento">Acceder</button>
-                    </div>
-                    <p class="form-text mt-2 small">
-                      Al iniciar sesión correctamente, se abrirá la tabla en una nueva pestaña.
-                    </p>
-                  </form>
-                </div>
-              </div>
-            </div>
-
-            <!-- Card: Crear usuario -->
-            <div class="col-12 col-lg-6">
-              <div class="card shadow-sm border-0 login-card h-100">
-                <div class="card-body p-4">
-                  <h2 class="h5 mb-3">Crear usuario</h2>
-                  <form id="regForm" class="needs-validation" novalidate>
-                    <div class="mb-3">
-                      <label for="regUser" class="form-label">Usuario</label>
-                      <input type="text" class="form-control" id="regUser" placeholder="Usuario" required>
-                      <div class="invalid-feedback">Ingresa un usuario.</div>
-                    </div>
-                    <div class="mb-3">
-                      <label for="regMail" class="form-label">Correo</label>
-                      <input type="email" class="form-control" id="regMail" placeholder="correo@dominio.com" required>
-                      <div class="invalid-feedback">Ingresa un correo válido.</div>
-                    </div>
-                    <div class="mb-3">
-                      <label for="regPass" class="form-label">Contraseña</label>
-                      <input type="password" class="form-control" id="regPass" placeholder="Contraseña" required>
-                      <div class="invalid-feedback">Ingresa la contraseña.</div>
-                    </div>
-                    <div class="d-grid gap-2">
-                      <button type="submit" class="btn btn-outline-secondary">Crear usuario</button>
-                    </div>
-                    <p class="form-text mt-2 small">
-                      Esta prueba guarda la contraseña en texto plano (para coincidir con tu BD actual).
-                    </p>
-                  </form>
-                </div>
-              </div>
-            </div>
-          </div> <!-- /row -->
-        </div>
-      </div>
-    </main>
-  </div>
-
-  <!-- Bootstrap JS -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    // Toggle sidebar en pantallas pequeñas
-    const sidebar  = document.getElementById('sidebar');
-    const backdrop = document.getElementById('sidebar-backdrop');
-    const btn      = document.getElementById('btnToggle');
-
-    function openSidebar() { sidebar.classList.add('show'); backdrop.classList.add('show'); document.body.style.overflow='hidden'; }
-    function closeSidebar() { sidebar.classList.remove('show'); backdrop.classList.remove('show'); document.body.style.overflow=''; }
-
-    btn && btn.addEventListener('click', openSidebar);
-    backdrop && backdrop.addEventListener('click', closeSidebar);
-
-    // Mostrar/ocultar contraseña (login)
-    const passInput  = document.getElementById('pass');
-    const toggleBtn  = document.getElementById('togglePass');
-    const toggleIcon = document.getElementById('toggleIcon');
-
-    function togglePassword() {
-      const isText = passInput.type === 'text';
-      passInput.type = isText ? 'password' : 'text';
-      toggleIcon.classList.toggle('bi-eye', isText);
-      toggleIcon.classList.toggle('bi-eye-slash', !isText);
-      toggleBtn.setAttribute('aria-pressed', String(!isText));
-    }
-    toggleBtn.addEventListener('click', togglePassword);
-
-    // ENDPOINTS (si está en el mismo XAMPP, usa rutas relativas)
-    const API_LOGIN    = "/api/login.php";
-    const API_REGISTER = "/api/register.php";
-
-    // URL de JotForm
-    const JOTFORM_TABLE_URL =
-      'https://www.jotform.com/tables/243185706594869?st=UE1zUzJWaWtkeDFyTXdsVGhqcUxzanJJZVFVN3p1ZlZVQVlrZjhLdE8wU3hMUEMvaExKWHRHa0x4Mlg3VnBkdXhqemF2T3ZXRXFkUXRJSjVjS25iZytNRmgreFA4Z29DNTNpcTV2Um5sY2k5U05kMmNlcWFqaVdxb0U5U202RHI=';
-
-    const alertBox   = document.getElementById('alertBox');
-    const alertRegOK = document.getElementById('alertRegOK');
-    const alertRegEr = document.getElementById('alertRegErr');
-
-    // LOGIN: valida contra BD
-    const loginForm = document.getElementById('loginForm');
-    loginForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      loginForm.classList.add('was-validated');
-
-      const u = document.getElementById('user').value.trim();
-      const p = document.getElementById('pass').value;
-      if (!u || !p) return;
-
-      try {
-        const r = await fetch(API_LOGIN, {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ usuario: u, password: p })
-        });
-        const data = await r.json();
-
-        if (!r.ok || !data.ok) {
-          alertBox.classList.remove('d-none');
-          return;
-        }
-
-        alertBox.classList.add('d-none');
-        window.open(JOTFORM_TABLE_URL, '_blank', 'noopener');
-      } catch (err) {
-        console.error(err);
-        alertBox.classList.remove('d-none');
-      }
-    });
-
-    // REGISTRO: inserta en BD (texto plano para la prueba)
-    const regForm = document.getElementById('regForm');
-    regForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      regForm.classList.add('was-validated');
-
-      const regUser = document.getElementById('regUser').value.trim();
-      const regMail = document.getElementById('regMail').value.trim();
-      const regPass = document.getElementById('regPass').value;
-      if (!regUser || !regMail || !regPass) return;
-
-      // Limpia alertas
-      alertRegOK.classList.add('d-none');
-      alertRegEr.classList.add('d-none');
-
-      try {
-        const r = await fetch(API_REGISTER, {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ usuario: regUser, correo: regMail, password: regPass })
-        });
-        const data = await r.json();
-
-        if (!r.ok || !data.ok) {
-          alertRegEr.classList.remove('d-none');
-          return;
-        }
-
-        // OK → feedback y limpiar form
-        alertRegOK.classList.remove('d-none');
-        regForm.reset();
-        regForm.classList.remove('was-validated');
-      } catch (err) {
-        console.error(err);
-        alertRegEr.classList.remove('d-none');
-      }
-    });
-  </script>
-</body>
-</html>
->>>>>>> 216583a9ae240431046763ba1b8cc297173bf0b7
