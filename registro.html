@@ -278,9 +278,11 @@
     // ========================
     // CONFIG API (auto-switch)
     // ========================
-    const RENDER_API = 'https://licitaciones-5kie.onrender.com/'; // ✅ tu URL pública
+    // Si abres desde GitHub Pages o archivo local -> usa Render con /api/
+    // Si estás en el mismo servicio PHP -> ruta relativa /api/
+    const RENDER_API = 'https://licitaciones-5kie.onrender.com/api/'; 
     const usingGithub = location.hostname.endsWith('github.io') || location.protocol === 'file:';
-    const API_BASE = usingGithub ? RENDER_API : ''; // GitHub/file -> Render; mismo servicio -> relativo
+    const API_BASE = usingGithub ? RENDER_API : '/api/';
 
     const f  = document.getElementById('form-lic');
     const msg= document.getElementById('msg');
@@ -301,7 +303,7 @@
       if(!f.checkValidity()) return;
       msg.textContent = 'Guardando…';
       try{
-        const r = await fetch(API_BASE + 'licitacion_insertar.php', { method:'POST', body: new FormData(f) });
+        const r = await fetch(API_BASE + 'registro_insertar.php', { method:'POST', body: new FormData(f) });
         const ct = (r.headers.get('content-type') || '').toLowerCase();
         const data = ct.includes('application/json') ? await r.json() : { ok:false, error: await r.text(), status: r.status };
         if(!r.ok || !data.ok) throw new Error(data.error || `HTTP ${r.status}`);
@@ -336,7 +338,6 @@
     f.addEventListener('change', updateProgress);
 
     // Resumen
-    const $ = s => document.querySelector(s);
     function fmtMoney(v){ if(!v) return '—'; const n = Number(v); return isNaN(n)? '—' : '₡ ' + n.toLocaleString('es-CR',{minimumFractionDigits:2, maximumFractionDigits:2}); }
     function fmtDate(v){ return v? new Date(v+'T00:00:00').toLocaleDateString('es-CR') : '—'; }
     function getRadio(name){ const x = f.querySelector(`[name="${name}"]:checked`); return x? x.value : '—'; }
