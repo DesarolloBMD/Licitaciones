@@ -27,9 +27,10 @@
     .divider{ height:1px; background:linear-gradient(90deg,transparent,#e7edf6,transparent); margin:.75rem 0 1.25rem; }
     .btn-acento{ background:var(--acento); color:#fff; border:none; }
     .btn-acento:hover{ filter:brightness(1.05); color:#fff; }
-
     .table thead th{ white-space:nowrap; }
     .truncate{ max-width:340px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .stat-pill{ border:1px solid #e7edf6; background:#f9fbff; }
+    .stat-pill .big{ font-weight:700; font-size:1.1rem; }
   </style>
 </head>
 <body>
@@ -78,6 +79,34 @@
         </div>
       </div>
 
+      <!-- Resumen (conteo por respuesta) -->
+      <div id="stats" class="row g-2 mb-3">
+        <div class="col-6 col-lg-3">
+          <div class="stat-pill rounded-3 p-2 d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-collection"></i> Total</span>
+            <span id="st-total" class="big">0</span>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="stat-pill rounded-3 p-2 d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-clock"></i> Pendientes</span>
+            <span id="st-pendiente" class="big">0</span>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="stat-pill rounded-3 p-2 d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-trophy"></i> Ganadas</span>
+            <span id="st-ganada" class="big">0</span>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="stat-pill rounded-3 p-2 d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-x-octagon"></i> Perdidas</span>
+            <span id="st-perdida" class="big">0</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Tabla -->
       <div class="table-responsive">
         <table class="table table-sm table-hover align-middle">
@@ -95,7 +124,7 @@
             </tr>
           </thead>
           <tbody id="tbody">
-            <tr><td colspan="9" class="text-center text-muted">Cargando…</td></tr>
+            <!-- Se llena por JS -->
           </tbody>
         </table>
       </div>
@@ -157,50 +186,73 @@
     </div>
   </div>
 
- <!-- Bootstrap JS -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-  // Base: raíz del servicio (sin /API/)
-  const RENDER_API = 'https://licitaciones-5kie.onrender.com/'; 
-  const usingGithub = location.hostname.endsWith('github.io') || location.protocol === 'file:';
-  const API_BASE = usingGithub ? RENDER_API : '/';
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-  const API_BUSCAR = API_BASE + 'licitaciones_buscar.php';
-  const API_CARGAR = API_BASE + 'licitacion_cargar.php';
-  const API_EDITAR = API_BASE + 'licitacion_actualizar.php';
-  const API_BORRAR = API_BASE + 'licitacion_borrar.php';
-</script>
+  <!-- Lógica Tabulación -->
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    // Base: raíz del servicio (sin /API/)
+    const RENDER_API = 'https://licitaciones-5kie.onrender.com/'; 
+    const usingGithub = location.hostname.endsWith('github.io') || location.protocol === 'file:';
+    const API_BASE = usingGithub ? RENDER_API : '/';
 
+    const API_BUSCAR = API_BASE + 'licitaciones_buscar.php';
+    const API_CARGAR = API_BASE + 'licitacion_cargar.php';
+    const API_EDITAR = API_BASE + 'licitacion_actualizar.php';
+    const API_BORRAR = API_BASE + 'licitacion_borrar.php';
 
     const $ = (s, d=document)=>d.querySelector(s);
-    function escapeHTML(s){ return (s??'').toString().replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+    function escapeHTML(s){
+      return (s ?? '').toString().replace(/[&<>"']/g, m => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+      }[m]));
+    }
     function fmtDateTime(v){ return v ? new Date(v).toLocaleString('es-CR') : '—'; }
+
+    function pintarStats(rows){
+      const total = rows.length;
+      const cont  = { pendiente:0, ganada:0, perdida:0 };
+      for(const r of rows){
+        const key = (r.respuesta || '').toLowerCase();
+        if (cont[key] !== undefined) cont[key]++;
+      }
+      $('#st-total').textContent     = String(total);
+      $('#st-pendiente').textContent = String(cont.pendiente);
+      $('#st-ganada').textContent    = String(cont.ganada);
+      $('#st-perdida').textContent   = String(cont.perdida);
+    }
 
     async function buscar(){
       const params = new URLSearchParams();
-      const q = $('#q').value.trim();
-      const anio = $('#anio').value.trim();
-      const mes  = $('#mes').value.trim();
-      if(q) params.set('q', q);
+      const q    = $('#q')?.value.trim()    || '';
+      const anio = $('#anio')?.value.trim() || '';
+      const mes  = $('#mes')?.value.trim()  || '';
+      if(q)    params.set('q', q);
       if(anio) params.set('anio', anio);
       if(mes)  params.set('mes',  mes);
-      const msg = $('#msg'); const tb = $('#tbody');
+
+      const msg = $('#msg');
+      const tb  = $('#tbody');
       msg.textContent = 'Cargando…';
       tb.innerHTML = `<tr><td colspan="9" class="text-center text-muted">Cargando…</td></tr>`;
 
       try{
-        const r = await fetch(API_BUSCAR + '?' + params.toString());
+        const r  = await fetch(API_BUSCAR + '?' + params.toString());
         const ct = (r.headers.get('content-type')||'').toLowerCase();
         if(!ct.includes('application/json')){
           const text = await r.text();
           tb.innerHTML = `<tr><td colspan="9" class="text-danger">Error: la API no devolvió JSON.<pre class="small mt-2 mb-0">${escapeHTML(text)}</pre></td></tr>`;
           msg.textContent = '';
+          pintarStats([]);
           return;
         }
         const j = await r.json();
         if(!r.ok || !j.ok) throw new Error(j.error || 'Error en búsqueda');
 
         const rows = j.rows || [];
+        pintarStats(rows);
+
         if(!rows.length){
           tb.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-inbox me-1"></i> Sin resultados</td></tr>`;
         }else{
@@ -236,6 +288,7 @@
       }catch(err){
         $('#tbody').innerHTML = `<tr><td colspan="9" class="text-danger">⚠ ${escapeHTML(err.message||String(err))}</td></tr>`;
         $('#msg').textContent = '';
+        pintarStats([]);
       }
     }
 
@@ -245,11 +298,11 @@
         const r = await fetch(API_CARGAR + '?id=' + encodeURIComponent(id));
         const j = await r.json();
         if(!r.ok || !j.ok) throw new Error(j.error || 'Error al cargar');
-        $('#e-id').value = j.row.id;
-        $('#e-estado').value = j.row.estado;
+        $('#e-id').value        = j.row.id;
+        $('#e-estado').value    = j.row.estado;
         $('#e-respuesta').value = j.row.respuesta;
-        $('#e-tipo').value = j.row.tipo;
-        $('#e-ultima').value = j.row.ultima_observacion || '';
+        $('#e-tipo').value      = j.row.tipo;
+        $('#e-ultima').value    = j.row.ultima_observacion || '';
         msg.textContent = '';
         new bootstrap.Modal($('#modalEditar')).show();
       }catch(err){
@@ -297,15 +350,16 @@
     }
 
     // Eventos
-    $('#btnBuscar').addEventListener('click', (e)=>{ e.preventDefault(); buscar(); });
-    $('#btnLimpiar').addEventListener('click', ()=>{
+    $('#btnBuscar')?.addEventListener('click', (e)=>{ e.preventDefault(); buscar(); });
+    $('#btnLimpiar')?.addEventListener('click', ()=>{
       ['q','anio','mes'].forEach(id=>{ const el = document.getElementById(id); if(el) el.value=''; });
       buscar();
     });
-    $('#btnGuardar').addEventListener('click', (e)=>{ e.preventDefault(); guardarEdicion(); });
+    $('#btnGuardar')?.addEventListener('click', (e)=>{ e.preventDefault(); guardarEdicion(); });
 
     // Init
     buscar();
+  });
   </script>
 </body>
 </html>
