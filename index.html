@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gestión de Licitaciones — Inicio</title>
+
+  <!-- Bootstrap 5 + Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+
+  <style>
+    :root{
+      --acento:#0B4912;
+      --acento-2:#126a1a;
+      --bg-hero: radial-gradient(1200px 600px at 10% -10%, #d9f99d55, transparent 40%),
+                 radial-gradient(1000px 600px at 90% -20%, #34d39933, transparent 45%),
+                 linear-gradient(180deg,#0b0f24 0%, #0b0f24 40%, #0e132c 100%);
+      --texto-claro:#E8EDF7;
+      --borde:rgba(255,255,255,.08);
+    }
+    body{ background:#0b0f24; }
+    .hero{ background:var(--bg-hero); color:#eaf2ff; padding:48px 0 72px; position:relative; overflow:hidden; }
+    .hero h1{ letter-spacing:.3px }
+    .badge-soft{ background:#e8ffe8; color:#0b4912; border:1px solid #bde5bd; }
+    .glass{
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border:1px solid rgba(255,255,255,.7);
+      box-shadow: 0 10px 30px rgba(0,0,0,.12);
+      border-radius: 18px;
+    }
+
+    /* Sidebar */
+    .sidebar { background:#0B0F24; min-width:260px; max-width:260px; min-height:100vh; position:sticky; top:0; padding:1rem; box-shadow:0 0 0 1px var(--borde) inset; }
+    .brand { display:flex; align-items:center; gap:.6rem; color:var(--texto-claro); text-decoration:none; font-weight:700; letter-spacing:.3px; }
+    .brand .logo { width:36px; height:36px; border-radius:.6rem; background:var(--acento); display:grid; place-items:center; color:#fff; }
+    .menu { margin-top: 1rem; }
+    .menu .nav-link { color: var(--texto-claro); border-radius:.6rem; padding:.65rem .75rem; display:flex; align-items:center; gap:.65rem; border:1px solid transparent; transition: transform .12s ease, background .12s ease, border-color .12s ease; }
+    .menu .nav-link:hover { background: rgba(255,255,255,.06); transform: translateX(2px); border-color: var(--borde); text-decoration:none; color:#fff; }
+    .menu .nav-link.active, .menu .nav-link[aria-current="page"] { background: linear-gradient(90deg, var(--acento), var(--acento-2) 90%); color:#fff; border-color:transparent; box-shadow: 0 0 0 1px rgba(255,255,255,.08) inset; }
+    .menu .nav-link .bi { opacity:.9; font-size:1.05rem; }
+    .sidebar hr { border-color: var(--borde); opacity: 1; }
+
+    /* Main */
+    .main { flex:1; min-width:0; background:#f6f7fb; }
+    .btn-acento{ background:var(--acento); color:#fff; border:none; }
+    .btn-acento:hover{ filter:brightness(1.05); color:#fff; }
+
+    /* Tarjetas de acción */
+    .action-card{
+      border:1px solid #e9edf3; border-radius:16px; padding:16px; background:#fff;
+      transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease, background .12s ease;
+    }
+    .action-card:hover{
+      transform: translateY(-2px);
+      box-shadow:0 10px 24px rgba(16,185,129,.12);
+      border-color:#d7e6da;
+      background:linear-gradient(0deg,#ffffff, #fffefb);
+    }
+    .action-icon{
+      width:40px; height:40px; display:grid; place-items:center; border-radius:10px;
+      background:linear-gradient(135deg,var(--acento),var(--acento-2));
+      color:#fff; box-shadow:0 8px 22px rgba(11,73,18,.25);
+    }
+
+    /* Indicadores */
+    .kpi{
+      border-radius:14px; border:1px solid #e9edf3; background:#ffffff; padding:16px;
+    }
+    .kpi .value{ font-size:1.6rem; font-weight:700; color:#0e1b2a; }
+    .kpi small{ color:#6b7a90; }
+
+    /* Últimas acciones */
+    .timeline{ border-left:2px dashed #e3eaf3; padding-left:14px; margin-left:6px; }
+    .t-item{ position:relative; margin-bottom:12px; }
+    .t-item::before{
+      content:''; position:absolute; left:-20px; top:4px; width:10px; height:10px; border-radius:50%;
+      background:linear-gradient(135deg,var(--acento),var(--acento-2));
+      box-shadow:0 0 0 3px #e8ffe8;
+    }
+    .text-muted-2{ color:#6b7a90; }
+
+    /* Mobile sidebar */
+    @media (max-width: 991.98px){
+      .sidebar{ position:fixed; left:0; top:0; transform:translateX(-100%); transition:transform .2s ease; z-index:1050; }
+      .sidebar.show{ transform:translateX(0); }
+      .sidebar-backdrop{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1040; }
+      .sidebar-backdrop.show{ display:block; }
+      .topbar{ position: sticky; top:0; z-index:1100; background:#fff; border-bottom:1px solid #e9edf3; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HERO -->
+  <header class="hero">
+    <div class="container">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+        <div class="d-flex align-items-center gap-3">
+          <span class="d-inline-flex align-items-center justify-content-center bg-success rounded-3"
+                style="width:48px;height:48px;box-shadow:0 8px 24px rgba(16,185,129,.25)">
+            <i class="bi bi-house-door text-white fs-4"></i>
+          </span>
+          <div>
+            <h1 class="h3 m-0">Bienvenido/a a Gestión de Licitaciones</h1>
+            <div class="text-white-50 small">Accesos rápidos, estado general y últimas acciones</div>
+          </div>
+        </div>
+        <span class="badge badge-soft rounded-pill px-3 py-2">
+          <i class="bi bi-shield-lock me-2"></i>Sesión segura
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <div class="d-flex" style="margin-top:-36px;">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar">
+      <a href="index.html" class="brand">
+        <span class="logo"><i class="bi bi-graph-up"></i></span>
+        <span>Gestión de Licitaciones</span>
+      </a>
+
+      <hr class="my-3" />
+      <nav class="nav flex-column menu">
+        <a class="nav-link active" href="index.html" aria-current="page">
+          <i class="bi bi-house-door"></i><span>Inicio</span>
+        </a>
+        <a class="nav-link" href="registro.html">
+          <i class="bi bi-journal-text"></i><span>Registro de licitaciones</span>
+        </a>
+        <a class="nav-link" href="tabulacion.html">
+          <i class="bi bi-table"></i><span>Tabulación</span>
+        </a>
+        <a class="nav-link" href="bandeja.html">
+          <i class="bi bi-inbox"></i><span>Bandeja de entrada</span>
+        </a>
+        <a class="nav-link" href="drive.html">
+          <i class="bi bi-cloud"></i><span>Drive</span>
+        </a>
+        <a class="nav-link" href="reporteria.html">
+          <i class="bi bi-bar-chart"></i><span>Reportería</span>
+        </a>
+      </nav>
+
+      <hr class="my-3" />
+      <div class="text-white-50 small"><i class="bi bi-shield-lock"></i> Sesión segura</div>
+    </aside>
+
+    <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+
+    <!-- Main -->
+    <main class="main w-100">
+      <!-- Topbar móvil -->
+      <div class="topbar px-3 py-2 d-lg-none d-flex align-items-center justify-content-between">
+        <button id="btnToggle" class="btn btn-sm btn-acento"><i class="bi bi-list"></i> Menú</button>
+        <strong class="ms-2">Inicio</strong>
+      </div>
+
+      <div class="container pb-5">
+        <div class="glass p-3 p-lg-4">
+          <!-- Accesos rápidos -->
+          <div class="mb-4">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <h2 class="h5 m-0"><i class="bi bi-lightning-charge text-success me-1"></i> Accesos rápidos</h2>
+              <img src="Recursos/Logos/BMD.png" alt="Logo BMD" class="img-fluid d-none d-md-block" style="max-height:38px" onerror="this.style.display='none'">
+            </div>
+            <div class="row g-3">
+              <div class="col-12 col-md-6 col-xl-3">
+                <a class="text-decoration-none d-block action-card" href="registro.html">
+                  <div class="d-flex align-items-center gap-3">
+                    <div class="action-icon"><i class="bi bi-journal-plus"></i></div>
+                    <div>
+                      <div class="fw-bold">Nueva licitación</div>
+                      <small class="text-muted">Crear registro inicial</small>
+                    </div>
+                  </div>
+                </a>
+              </div>
+              <div class="col-12 col-md-6 col-xl-3">
+                <a class="text-decoration-none d-block action-card" href="tabulacion.html">
+                  <div class="d-flex align-items-center gap-3">
+                    <div class="action-icon"><i class="bi bi-table"></i></div>
+                    <div>
+                      <div class="fw-bold">Tabulación</div>
+                      <small class="text-muted">Listado y filtros</small>
+                    </div>
+                  </div>
+                </a>
+              </div>
+              <div class="col-12 col-md-6 col-xl-3">
+                <a class="text-decoration-none d-block action-card" href="reporteria.html">
+                  <div class="d-flex align-items-center gap-3">
+                    <div class="action-icon"><i class="bi bi-bar-chart-line"></i></div>
+                    <div>
+                      <div class="fw-bold">Reportería</div>
+                      <small class="text-muted">Indicadores clave</small>
+                    </div>
+                  </div>
+                </a>
+              </div>
+              <div class="col-12 col-md-6 col-xl-3">
+                <a class="text-decoration-none d-block action-card" href="bandeja.html">
+                  <div class="d-flex align-items-center gap-3">
+                    <div class="action-icon"><i class="bi bi-inbox"></i></div>
+                    <div>
+                      <div class="fw-bold">Bandeja</div>
+                      <small class="text-muted">Seguimiento y tareas</small>
+                    </div>
+                  </div>
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <!-- KPIs + Últimas acciones -->
+          <div class="row g-3">
+            <div class="col-12 col-xl-8">
+              <div class="kpi mb-3">
+                <div class="row g-3">
+                  <div class="col-6 col-md-4">
+                    <div class="p-3 border rounded-3">
+                      <div class="text-muted-2 small">Licitaciones activas</div>
+                      <div class="value">—</div>
+                      <small class="text-muted">Últimos 30 días</small>
+                    </div>
+                  </div>
+                  <div class="col-6 col-md-4">
+                    <div class="p-3 border rounded-3">
+                      <div class="text-muted-2 small">Éxito (ganadas)</div>
+                      <div class="value">—</div>
+                      <small class="text-muted">Tasa acumulada</small>
+                    </div>
+                  </div>
+                  <div class="col-6 col-md-4">
+                    <div class="p-3 border rounded-3">
+                      <div class="text-muted-2 small">En proceso</div>
+                      <div class="value">—</div>
+                      <small class="text-muted">Actual</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="p-3 border rounded-3 bg-white">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <h3 class="h6 m-0"><i class="bi bi-clock-history text-success me-1"></i> Últimas acciones</h3>
+                  <a href="tabulacion.html" class="small text-decoration-none">Ver todo</a>
+                </div>
+                <div class="timeline">
+                  <div class="t-item">
+                    <div class="d-flex justify-content-between">
+                      <strong>Registro creado</strong>
+                      <small class="text-muted">—</small>
+                    </div>
+                    <div class="text-muted-2">Nº Licitación: —</div>
+                  </div>
+                  <div class="t-item">
+                    <div class="d-flex justify-content-between">
+                      <strong>Observación</strong>
+                      <small class="text-muted">—</small>
+                    </div>
+                    <div class="text-muted-2">—</div>
+                  </div>
+                  <div class="t-item">
+                    <div class="d-flex justify-content-between">
+                      <strong>Estado actualizado</strong>
+                      <small class="text-muted">—</small>
+                    </div>
+                    <div class="text-muted-2">—</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Panel derecho -->
+            <div class="col-12 col-xl-4">
+              <div class="p-3 border rounded-3 bg-white h-100">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <h3 class="h6 m-0"><i class="bi bi-info-circle text-success me-1"></i> Atajos útiles</h3>
+                </div>
+                <div class="d-grid gap-2">
+                  <a class="btn btn-acento" href="registro.html"><i class="bi bi-plus-lg me-1"></i> Registrar nueva licitación</a>
+                  <a class="btn btn-outline-success" href="reporteria.html"><i class="bi bi-bar-chart me-1"></i> Ver reportería</a>
+                  <a class="btn btn-outline-success" href="drive.html"><i class="bi bi-cloud me-1"></i> Abrir Drive</a>
+                </div>
+                <hr class="my-3" />
+                <small class="text-muted d-block">
+                  Sugerencia: mantén el campo <strong>Última observación</strong> actualizado para un seguimiento más claro.
+                </small>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Toggle sidebar en móvil
+    const sidebar = document.getElementById('sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    const btn = document.getElementById('btnToggle');
+    function openSidebar(){ sidebar.classList.add('show'); backdrop.classList.add('show'); document.body.style.overflow='hidden'; }
+    function closeSidebar(){ sidebar.classList.remove('show'); backdrop.classList.remove('show'); document.body.style.overflow=''; }
+    btn && btn.addEventListener('click', openSidebar);
+    backdrop && backdrop.addEventListener('click', closeSidebar);
+  </script>
+</body>
+</html>
