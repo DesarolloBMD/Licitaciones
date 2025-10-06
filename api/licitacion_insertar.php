@@ -2,12 +2,21 @@
 // licitacion_insertar.php
 declare(strict_types=1);
 
-// ===== Cabeceras (JSON + CORS básico para pruebas) =====
+// ===== Cabeceras (JSON + CORS) =====
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Origin: *');                 // en prod puedes poner tu dominio
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
+
+// Preflight
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
+
+// Solo POST
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+  http_response_code(405);
+  echo json_encode(['ok'=>false,'error'=>'Método no permitido (usa POST)'], JSON_UNESCAPED_UNICODE);
+  exit;
+}
 
 function jexit(bool $ok, array $extra = []): void {
   http_response_code($ok ? 200 : 400);
@@ -16,8 +25,8 @@ function jexit(bool $ok, array $extra = []): void {
 }
 
 // ===== Conexión a PostgreSQL (Render) =====
-// Usamos la URL que me diste (con puerto y sslmode=require).
-// Puedes sobreescribir con la env var DATABASE_URL si quieres.
+// 1) DATABASE_URL (variable de entorno recomendada)
+// 2) Fallback: tu URL pública de Render con sslmode=require
 $DATABASE_URL = getenv('DATABASE_URL');
 if (!$DATABASE_URL || stripos($DATABASE_URL, 'postgres') === false) {
   $DATABASE_URL = 'postgresql://licitaciones_bmd_user:vFgswY5U7MaSqqexdhjgAE5M9fBpT2OQ@dpg-d3g2v7j3fgac73c4eek0-a.oregon-postgres.render.com:5432/licitaciones_bmd?sslmode=require';
@@ -34,7 +43,9 @@ try {
   $pass   = $parts['pass'];
   $dbname = ltrim($parts['path'], '/');
 
+  // Forzar sslmode=require en DSN
   $dsn = sprintf('pgsql:host=%s;port=%d;dbname=%s;sslmode=require', $host, $port, $dbname);
+
   $pdo = new PDO($dsn, $user, $pass, [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
