@@ -1,5 +1,4 @@
 <?php
-// licitaciones_resumen.php
 declare(strict_types=1);
 require __DIR__.'/db.php';
 
@@ -9,8 +8,6 @@ header('Access-Control-Allow-Methods: GET, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') { http_response_code(405); echo json_encode(['ok'=>false,'error'=>'Método no permitido (GET)']); exit; }
-
-function jexit($ok, $extra=[]){ http_response_code($ok?200:400); echo json_encode(array_merge(['ok'=>$ok],$extra), JSON_UNESCAPED_UNICODE); exit; }
 
 $q          = trim((string)($_GET['q'] ?? ''));
 $anio       = isset($_GET['anio']) ? (int)$_GET['anio'] : 0;

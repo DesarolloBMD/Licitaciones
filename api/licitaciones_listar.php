@@ -1,5 +1,4 @@
 <?php
-// licitaciones_listar.php
 declare(strict_types=1);
 require __DIR__.'/db.php';
 
@@ -57,6 +56,6 @@ foreach ($params as $k=>$v){ $stmt->bindValue($k, $v); }
 $stmt->bindValue(':lim', $size, PDO::PARAM_INT);
 $stmt->bindValue(':off', $offset, PDO::PARAM_INT);
 $stmt->execute();
-$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$rows = $stmt->fetchAll();
 
 jexit(true, ['page'=>$page,'page_size'=>$size,'total'=>$total,'rows'=>$rows]);
