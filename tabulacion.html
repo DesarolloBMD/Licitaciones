@@ -17,20 +17,15 @@
                  radial-gradient(1000px 600px at 90% -20%, #34d39933, transparent 45%),
                  linear-gradient(180deg,#0b0f24 0%, #0b0f24 40%, #0e132c 100%);
     }
-    body{ background:#0b0f24; color:#0e1b2a; }
-    .hero{ background:var(--bg-hero); color:#eaf2ff; padding:48px 0 72px; position:relative; overflow:hidden; }
-    .hero h1{ letter-spacing:.3px }
-    .badge-soft{ background:#e8ffe8; color:#0b4912; border:1px solid #bde5bd; }
-    .glass{ background:rgba(255,255,255,.92); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.6); box-shadow:0 10px 30px rgba(0,0,0,.12); border-radius:18px; }
-
-    .section-title{ color:#11223b; }
-    .divider{ height:1px; background:linear-gradient(90deg,transparent,#e7edf6,transparent); margin:.75rem 0 1.25rem; }
+    body{ background:#0b0f24; }
+    .hero{ background:var(--bg-hero); color:#eaf2ff; padding:40px 0 56px; }
+    .glass{ background:#fff; border-radius:18px; box-shadow:0 10px 30px rgba(0,0,0,.12); }
     .btn-acento{ background:var(--acento); color:#fff; border:none; }
     .btn-acento:hover{ filter:brightness(1.05); color:#fff; }
-    .table thead th{ white-space:nowrap; }
-    .truncate{ max-width:340px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .stat-pill{ border:1px solid #e7edf6; background:#f9fbff; }
-    .stat-pill .big{ font-weight:700; font-size:1.1rem; }
+    .table thead th{ position:sticky; top:0; z-index:1; background:#f8fafc; }
+    .truncate{ max-width: 420px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .th-small{ min-width: 120px; }
+    .th-wide { min-width: 240px; }
   </style>
 </head>
 <body>
@@ -44,319 +39,145 @@
             <i class="bi bi-table text-white fs-4"></i>
           </span>
           <div>
-            <h1 class="h3 m-0">Tabulación de licitaciones</h1>
-            <div class="text-white-50 small">Busca, visualiza, edita y borra registros</div>
+            <h1 class="h4 m-0">Tabulación de licitaciones</h1>
+            <div class="text-white-50 small">Vista de sólo lectura con todos los campos</div>
           </div>
         </div>
-        <span class="badge badge-soft rounded-pill px-3 py-2">
-          <i class="bi bi-shield-lock me-2"></i>Sesión segura
-        </span>
+        <button id="btnRecargar" class="btn btn-acento">
+          <i class="bi bi-arrow-repeat me-1"></i> Recargar
+        </button>
       </div>
     </div>
   </header>
 
   <!-- MAIN -->
-  <main class="container" style="margin-top:-42px; margin-bottom:64px;">
+  <main class="container" style="margin-top:-28px; margin-bottom:48px;">
     <div class="glass p-3 p-lg-4">
-      <!-- Filtros -->
-      <div class="d-flex align-items-end gap-2 flex-wrap mb-3">
-        <div class="flex-grow-1">
-          <label class="form-label">Buscar (Empresa o Nº licitación)</label>
-          <input id="q" class="form-control" placeholder="Ej: ACME o 2025-XX-0001" />
-        </div>
-        <div>
-          <label class="form-label">Año</label>
-          <input id="anio" type="number" class="form-control" min="2000" max="2100" />
-        </div>
-        <div>
-          <label class="form-label">Mes</label>
-          <input id="mes" type="number" class="form-control" min="1" max="12" />
-        </div>
-        <div class="d-flex gap-2">
-          <button id="btnBuscar" class="btn btn-success"><i class="bi bi-search me-1"></i> Buscar</button>
-          <button id="btnLimpiar" class="btn btn-outline-secondary"><i class="bi bi-eraser me-1"></i> Limpiar</button>
-          <a href="registro.html" class="btn btn-acento"><i class="bi bi-plus-circle me-1"></i> Nueva</a>
-        </div>
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <strong class="text-muted">Resultados</strong>
+        <span id="msg" class="small text-muted"></span>
       </div>
 
-      <!-- Resumen (conteo por respuesta) -->
-      <div id="stats" class="row g-2 mb-3">
-        <div class="col-6 col-lg-3">
-          <div class="stat-pill rounded-3 p-2 d-flex justify-content-between align-items-center">
-            <span><i class="bi bi-collection"></i> Total</span>
-            <span id="st-total" class="big">0</span>
-          </div>
-        </div>
-        <div class="col-6 col-lg-3">
-          <div class="stat-pill rounded-3 p-2 d-flex justify-content-between align-items-center">
-            <span><i class="bi bi-clock"></i> Pendientes</span>
-            <span id="st-pendiente" class="big">0</span>
-          </div>
-        </div>
-        <div class="col-6 col-lg-3">
-          <div class="stat-pill rounded-3 p-2 d-flex justify-content-between align-items-center">
-            <span><i class="bi bi-trophy"></i> Ganadas</span>
-            <span id="st-ganada" class="big">0</span>
-          </div>
-        </div>
-        <div class="col-6 col-lg-3">
-          <div class="stat-pill rounded-3 p-2 d-flex justify-content-between align-items-center">
-            <span><i class="bi bi-x-octagon"></i> Perdidas</span>
-            <span id="st-perdida" class="big">0</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Tabla -->
-      <div class="table-responsive">
+      <div class="table-responsive" style="max-height:70vh;">
         <table class="table table-sm table-hover align-middle">
           <thead class="table-light">
             <tr>
-              <th>ID</th>
-              <th>Nº Licitación</th>
-              <th>Empresa</th>
-              <th>Estado</th>
-              <th>Respuesta</th>
-              <th>Tipo</th>
-              <th>Creado</th>
-              <th>Última observación</th>
-              <th></th>
+              <th class="th-small">ID</th>
+              <th class="th-small">Año</th>
+              <th class="th-small">Mes</th>
+              <th class="th-small">F. presentación</th>
+              <th class="th-small">F. cierre</th>
+              <th class="th-small">Fecha</th>
+              <th class="th-wide">Nº Licitación</th>
+              <th class="th-wide">Empresa</th>
+              <th class="th-wide">Descripción</th>
+              <th class="th-small">SICOP</th>
+              <th class="th-small">BMD</th>
+              <th class="th-small">Encargado</th>
+              <th class="th-small">Estado</th>
+              <th class="th-small">Respuesta</th>
+              <th class="th-small">Tipo</th>
+              <th class="th-wide">Obs. iniciales</th>
+              <th class="th-wide">Última observación</th>
+              <th class="th-small">Creado</th>
+              <th class="th-small">Actualizado</th>
             </tr>
           </thead>
-          <tbody id="tbody"><!-- JS llena aquí --></tbody>
+          <tbody id="tbody">
+            <tr><td colspan="19" class="text-center py-4 text-muted">Cargando…</td></tr>
+          </tbody>
         </table>
       </div>
-
-      <div id="msg" class="small text-muted mt-2"></div>
     </div>
   </main>
 
-  <!-- Modal Editar -->
-  <div class="modal fade" id="modalEditar" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title d-flex align-items-center gap-2">
-            <i class="bi bi-pencil-square text-success"></i> Editar licitación
-          </h5>
-          <button class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <form id="form-edit">
-            <input type="hidden" id="e-id">
-            <div class="row g-3">
-              <div class="col-12 col-md-4">
-                <label class="form-label">Estado</label>
-                <select id="e-estado" class="form-select">
-                  <option>en proceso</option>
-                  <option>finalizada</option>
-                </select>
-              </div>
-              <div class="col-12 col-md-4">
-                <label class="form-label">Respuesta</label>
-                <select id="e-respuesta" class="form-select">
-                  <option>pendiente</option>
-                  <option>perdida</option>
-                  <option>ganada</option>
-                </select>
-              </div>
-              <div class="col-12 col-md-4">
-                <label class="form-label">Tipo</label>
-                <select id="e-tipo" class="form-select">
-                  <option>cantidad definida</option>
-                  <option>demanda</option>
-                </select>
-              </div>
-              <div class="col-12">
-                <label class="form-label">Última observación</label>
-                <textarea id="e-ultima" class="form-control" rows="4" placeholder="Notas de seguimiento…"></textarea>
-                <div class="form-text">Deja vacío para borrar la última observación.</div>
-              </div>
-            </div>
-          </form>
-        </div>
-        <div class="modal-footer">
-          <div id="edit-msg" class="me-auto small text-muted"></div>
-          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button id="btnGuardar" class="btn btn-acento"><i class="bi bi-check2-circle me-1"></i> Guardar cambios</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Scripts -->
+  <!-- JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    // Endpoints en /API/ (tu servicio Render los debe exponer así)
-    const RENDER_API = 'https://licitaciones-5kie.onrender.com/API/';
-    const usingGithub = location.hostname.endsWith('github.io') || location.protocol === 'file:';
-    const API_BASE = usingGithub ? RENDER_API : '/API/';
+    // ===== Usa el endpoint correcto: tabulacion_cargar.php =====
+    // Si el PHP está en /API del mismo servidor que sirve el HTML:
+    //   const API_CARGAR = '/API/tabulacion_cargar.php';
+    // O si lo sirves desde Render (público):
+    //   const API_CARGAR = 'https://licitaciones-5kie.onrender.com/API/tabulacion_cargar.php';
+    const API_CARGAR = '/API/tabulacion_cargar.php';
 
-    const API_BUSCAR = API_BASE + 'licitaciones_buscar.php';
-    const API_CARGAR = API_BASE + 'licitacion_cargar.php';
-    const API_EDITAR = API_BASE + 'licitacion_actualizar.php';
-    const API_BORRAR = API_BASE + 'licitacion_borrar.php';
-
+    // ===== Utils
     const $ = (s, d=document)=>d.querySelector(s);
-    function escapeHTML(s){
-      return (s ?? '').toString().replace(/[&<>"']/g, m => ({
-        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-      }[m]));
-    }
+    function escapeHTML(s){ return (s??'').toString().replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+    function fmtDate(v){ return v ? new Date(v+'T00:00:00').toLocaleDateString('es-CR') : '—'; }
     function fmtDateTime(v){ return v ? new Date(v).toLocaleString('es-CR') : '—'; }
-
-    function pintarStats(rows){
-      const total = rows.length;
-      const cont  = { pendiente:0, ganada:0, perdida:0 };
-      for(const r of rows){
-        const key = (r.respuesta || '').toLowerCase();
-        if (cont[key] !== undefined) cont[key]++;
-      }
-      $('#st-total').textContent     = String(total);
-      $('#st-pendiente').textContent = String(cont.pendiente);
-      $('#st-ganada').textContent    = String(cont.ganada);
-      $('#st-perdida').textContent   = String(cont.perdida);
+    function fmtCRC(n){
+      if(n===null || n===undefined || n==='') return '—';
+      const num = Number(n);
+      return isNaN(num) ? '—' : '₡ ' + num.toLocaleString('es-CR', {minimumFractionDigits:2, maximumFractionDigits:2});
     }
+    const MESES = ['','enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 
-    async function buscar(){
-      const params = new URLSearchParams();
-      const q    = $('#q')?.value.trim()    || '';
-      const anio = $('#anio')?.value.trim() || '';
-      const mes  = $('#mes')?.value.trim()  || '';
-      if(q)    params.set('q', q);
-      if(anio) params.set('anio', anio);
-      if(mes)  params.set('mes',  mes);
-
+    // ===== Cargar tabla desde tabulacion_cargar.php
+    async function cargarTabla(){
       const msg = $('#msg');
       const tb  = $('#tbody');
       msg.textContent = 'Cargando…';
-      tb.innerHTML = `<tr><td colspan="9" class="text-center text-muted">Cargando…</td></tr>`;
+      tb.innerHTML = `<tr><td colspan="19" class="text-center py-4 text-muted">Cargando…</td></tr>`;
 
       try{
-        const qs = params.toString();
-        const url = API_BUSCAR + (qs ? '?' + qs : '');
-        const r  = await fetch(url);
-        const ct = (r.headers.get('content-type')||'').toLowerCase();
+        const r = await fetch(API_CARGAR);
+        const ct = (r.headers.get('content-type') || '').toLowerCase();
         if(!ct.includes('application/json')){
           const text = await r.text();
-          tb.innerHTML = `<tr><td colspan="9" class="text-danger">Error: la API no devolvió JSON.<pre class="small mt-2 mb-0">${escapeHTML(text)}</pre></td></tr>`;
+          tb.innerHTML = `<tr><td colspan="19" class="text-danger small">
+            Error: la API no devolvió JSON.<br><pre class="mb-0">${escapeHTML(text)}</pre></td></tr>`;
           msg.textContent = '';
-          pintarStats([]);
           return;
         }
         const j = await r.json();
-        if(!r.ok || !j.ok) throw new Error(j.error || 'Error en búsqueda');
+        if(!r.ok || !j.ok) throw new Error(j.error || 'Error en la carga');
 
-        const rows = j.rows || [];
-        pintarStats(rows);
-
+        // Soporta "rows" o "data"
+        const rows = j.rows || j.data || [];
         if(!rows.length){
-          tb.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-inbox me-1"></i> Sin resultados</td></tr>`;
-        }else{
-          tb.innerHTML = '';
-          rows.forEach(row=>{
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-              <td>${row.id}</td>
-              <td>${escapeHTML(row.numero_licitacion)}</td>
-              <td class="truncate" title="${escapeHTML(row.empresa_solicitante||'')}">${escapeHTML(row.empresa_solicitante||'')}</td>
-              <td>${escapeHTML(row.estado)}</td>
-              <td>${escapeHTML(row.respuesta)}</td>
-              <td>${escapeHTML(row.tipo)}</td>
-              <td>${fmtDateTime(row.creado_en)}</td>
-              <td class="truncate" title="${escapeHTML(row.ultima_observacion||'')}">${escapeHTML(row.ultima_observacion||'')}</td>
-              <td class="text-nowrap">
-                <button class="btn btn-sm btn-outline-primary me-1" data-action="edit" data-id="${row.id}"><i class="bi bi-pencil"></i></button>
-                <button class="btn btn-sm btn-outline-danger" data-action="del" data-id="${row.id}"><i class="bi bi-trash"></i></button>
-              </td>
-            `;
-            tb.appendChild(tr);
-          });
-
-          tb.querySelectorAll('button[data-action="edit"]').forEach(btn=>{
-            btn.addEventListener('click', ()=> abrirEditar(Number(btn.dataset.id)));
-          });
-          tb.querySelectorAll('button[data-action="del"]').forEach(btn=>{
-            btn.addEventListener('click', ()=> borrarRegistro(Number(btn.dataset.id)));
-          });
+          tb.innerHTML = `<tr><td colspan="19" class="text-center py-4 text-muted">Sin resultados</td></tr>`;
+          msg.textContent = '0 registros';
+          return;
         }
+
+        tb.innerHTML = '';
+        rows.forEach(row=>{
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${row.id}</td>
+            <td>${row.anio ?? ''}</td>
+            <td>${MESES[row.mes ?? 0] || row.mes || ''}</td>
+            <td>${fmtDate(row.fecha_presentacion)}</td>
+            <td>${fmtDate(row.fecha_cierre)}</td>
+            <td>${fmtDate(row.fecha)}</td>
+            <td class="truncate" title="${escapeHTML(row.numero_licitacion||'')}">${escapeHTML(row.numero_licitacion||'')}</td>
+            <td class="truncate" title="${escapeHTML(row.empresa_solicitante||'')}">${escapeHTML(row.empresa_solicitante||'')}</td>
+            <td class="truncate" title="${escapeHTML(row.descripcion||'')}">${escapeHTML(row.descripcion||'')}</td>
+            <td>${fmtCRC(row.presupuesto_sicop)}</td>
+            <td>${fmtCRC(row.presupuesto_bmd)}</td>
+            <td>${escapeHTML(row.encargado||'')}</td>
+            <td>${escapeHTML(row.estado||'')}</td>
+            <td>${escapeHTML(row.respuesta||'')}</td>
+            <td>${escapeHTML(row.tipo||'')}</td>
+            <td class="truncate" title="${escapeHTML(row.observaciones_iniciales||'')}">${escapeHTML(row.observaciones_iniciales||'')}</td>
+            <td class="truncate" title="${escapeHTML(row.ultima_observacion||'')}">${escapeHTML(row.ultima_observacion||'')}</td>
+            <td>${fmtDateTime(row.creado_en)}</td>
+            <td>${fmtDateTime(row.actualizado_en)}</td>
+          `;
+          tb.appendChild(tr);
+        });
         msg.textContent = `${rows.length} registro(s)`;
       }catch(err){
-        $('#tbody').innerHTML = `<tr><td colspan="9" class="text-danger">⚠ ${escapeHTML(err.message||String(err))}</td></tr>`;
-        $('#msg').textContent = '';
-        pintarStats([]);
-      }
-    }
-
-    async function abrirEditar(id){
-      const msg = $('#edit-msg'); msg.textContent = 'Cargando…';
-      try{
-        const r = await fetch(API_CARGAR + '?id=' + encodeURIComponent(id));
-        const j = await r.json();
-        if(!r.ok || !j.ok) throw new Error(j.error || 'Error al cargar');
-        $('#e-id').value        = j.row.id;
-        $('#e-estado').value    = j.row.estado;
-        $('#e-respuesta').value = j.row.respuesta;
-        $('#e-tipo').value      = j.row.tipo;
-        $('#e-ultima').value    = j.row.ultima_observacion || '';
+        $('#tbody').innerHTML = `<tr><td colspan="19" class="text-danger small">⚠ ${escapeHTML(err.message||String(err))}</td></tr>`;
         msg.textContent = '';
-        new bootstrap.Modal($('#modalEditar')).show();
-      }catch(err){
-        msg.textContent = '⚠ ' + (err.message || String(err));
-        new bootstrap.Modal($('#modalEditar')).show();
-      }
-    }
-
-    async function guardarEdicion(){
-      const id = Number($('#e-id').value);
-      const fd = new FormData();
-      fd.set('id', id);
-      fd.set('estado', $('#e-estado').value);
-      fd.set('respuesta', $('#e-respuesta').value);
-      fd.set('tipo', $('#e-tipo').value);
-      fd.set('ultima_observacion', $('#e-ultima').value.trim());
-
-      const msg = $('#edit-msg');
-      msg.textContent = 'Guardando…';
-      try{
-        const r = await fetch(API_EDITAR, { method:'POST', body: fd });
-        const j = await r.json();
-        if(!r.ok || !j.ok) throw new Error(j.error || 'Error al actualizar');
-        msg.textContent = '¡Actualizado!';
-        setTimeout(()=>bootstrap.Modal.getInstance($('#modalEditar')).hide(), 300);
-        buscar();
-      }catch(err){
-        msg.textContent = '⚠ ' + (err.message || String(err));
-      }
-    }
-
-    async function borrarRegistro(id){
-      if(!confirm('¿Borrar el registro #' + id + '?')) return;
-      const fd = new FormData(); fd.set('id', id);
-      const msg = $('#msg'); msg.textContent = 'Borrando…';
-      try{
-        const r = await fetch(API_BORRAR, { method:'POST', body: fd });
-        const j = await r.json();
-        if(!r.ok || !j.ok) throw new Error(j.error || 'Error al borrar');
-        msg.textContent = 'Registro borrado';
-        buscar();
-      }catch(err){
-        msg.textContent = '⚠ ' + (err.message || String(err));
       }
     }
 
     // Eventos
-    $('#btnBuscar')?.addEventListener('click', (e)=>{ e.preventDefault(); buscar(); });
-    $('#btnLimpiar')?.addEventListener('click', ()=>{
-      ['q','anio','mes'].forEach(id=>{ const el = document.getElementById(id); if(el) el.value=''; });
-      buscar();
-    });
-    $('#btnGuardar')?.addEventListener('click', (e)=>{ e.preventDefault(); guardarEdicion(); });
-
-    // Init
-    buscar();
-  });
+    $('#btnRecargar').addEventListener('click', cargarTabla);
+    // Auto init
+    cargarTabla();
   </script>
 </body>
 </html>
