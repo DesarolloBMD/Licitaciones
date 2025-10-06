@@ -16,45 +16,11 @@ function jexit(bool $ok, array $extra=[]): void {
 $id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT);
 if (!$id || $id < 1) jexit(false, ['error'=>'ID inválido']);
 
-$estado    = isset($_POST['estado'])    ? trim((string)$_POST['estado'])    : null;
-$respuesta = isset($_POST['respuesta']) ? trim((string)$_POST['respuesta']) : null;
-$tipo      = isset($_POST['tipo'])      ? trim((string)$_POST['tipo'])      : null;
-$ultima    = array_key_exists('ultima_observacion', $_POST) ? trim((string)$_POST['ultima_observacion']) : null;
-
-$allowedE = ['en proceso','finalizada'];
-$allowedR = ['pendiente','perdida','ganada'];
-$allowedT = ['cantidad definida','demanda'];
-
-$sets = []; $p = [':id'=>$id];
-
-if ($estado !== null) {
-  if (!in_array($estado, $allowedE, true)) jexit(false, ['error'=>'estado inválido']);
-  $sets[] = 'estado = :estado'; $p[':estado'] = $estado;
-}
-if ($respuesta !== null) {
-  if (!in_array($respuesta, $allowedR, true)) jexit(false, ['error'=>'respuesta inválida']);
-  $sets[] = 'respuesta = :respuesta'; $p[':respuesta'] = $respuesta;
-}
-if ($tipo !== null) {
-  if (!in_array($tipo, $allowedT, true)) jexit(false, ['error'=>'tipo inválido']);
-  $sets[] = 'tipo = :tipo'; $p[':tipo'] = $tipo;
-}
-if ($ultima !== null) {
-  if ($ultima === '') { $p[':ultima'] = null; }
-  else {
-    if (mb_strlen($ultima) > 10000) jexit(false, ['error'=>'ultima_observacion demasiado larga']);
-    $p[':ultima'] = $ultima;
-  }
-  $sets[] = 'ultima_observacion = :ultima';
-}
-if (!$sets) jexit(false, ['error'=>'Nada que actualizar']);
-
-$sets[] = 'actualizado_en = now()';
-
 $DATABASE_URL = getenv('DATABASE_URL');
 if (!$DATABASE_URL || stripos($DATABASE_URL, 'postgres') === false) {
   $DATABASE_URL = 'postgresql://licitaciones_bmd_user:vFgswY5U7MaSqqexdhjgAE5M9fBpT2OQ@dpg-d3g2v7j3fgac73c4eek0-a.oregon-postgres.render.com:5432/licitaciones_bmd?sslmode=require';
 }
+
 try {
   $parts = parse_url($DATABASE_URL);
   $dsn = sprintf('pgsql:host=%s;port=%d;dbname=%s;sslmode=%s',
@@ -67,10 +33,11 @@ try {
     PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,
   ]);
-  $sql = "UPDATE public.licitaciones SET ".implode(', ', $sets)." WHERE id = :id";
-  $stmt = $pdo->prepare($sql);
-  $stmt->execute($p);
-  jexit(true, ['id'=>$id]);
+
+  $stmt = $pdo->prepare("DELETE FROM public.licitaciones WHERE id = :id");
+  $stmt->execute([':id'=>$id]);
+
+  jexit(true, ['id'=>$id, 'deleted'=>$stmt->rowCount()]);
 } catch (Throwable $e) {
   jexit(false, ['error'=>'DB: '.$e->getMessage()]);
 }

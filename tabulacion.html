@@ -21,28 +21,15 @@
     .hero{ background:var(--bg-hero); color:#eaf2ff; padding:48px 0 72px; position:relative; overflow:hidden; }
     .hero h1{ letter-spacing:.3px }
     .badge-soft{ background:#e8ffe8; color:#0b4912; border:1px solid #bde5bd; }
-    .glass{ background:rgba(255,255,255,.9); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.6); box-shadow:0 10px 30px rgba(0,0,0,.12); border-radius:18px; }
+    .glass{ background:rgba(255,255,255,.92); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.6); box-shadow:0 10px 30px rgba(0,0,0,.12); border-radius:18px; }
 
     .section-title{ color:#11223b; }
     .divider{ height:1px; background:linear-gradient(90deg,transparent,#e7edf6,transparent); margin:.75rem 0 1.25rem; }
     .btn-acento{ background:var(--acento); color:#fff; border:none; }
     .btn-acento:hover{ filter:brightness(1.05); color:#fff; }
 
-    /* KPI cards */
-    .card-kpi{ border:0; border-radius:18px; overflow:hidden; box-shadow:0 10px 25px rgba(0,0,0,.08); }
-    .card-kpi .hd{ background:linear-gradient(90deg,var(--acento),var(--acento-2)); color:#fff; padding:.5rem .75rem; font-size:.8rem; text-transform:uppercase; letter-spacing:.3px; }
-    .card-kpi .bd{ padding:1rem; }
-    .display-kpi{ font-size:2.2rem; font-weight:800; color:#0e1b2a; line-height:1; }
-
-    /* Tabla */
     .table thead th{ white-space:nowrap; }
     .truncate{ max-width:340px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
-    /* Paginación compacta */
-    .pager .btn{ border-radius:999px; }
-
-    /* Modal */
-    .form-hint{ color:#6b7c93; font-size:.85rem; }
   </style>
 </head>
 <body>
@@ -57,7 +44,7 @@
           </span>
           <div>
             <h1 class="h3 m-0">Tabulación de licitaciones</h1>
-            <div class="text-white-50 small">Consulta, filtra y edita estados y últimas observaciones</div>
+            <div class="text-white-50 small">Busca, visualiza, edita y borra registros</div>
           </div>
         </div>
         <span class="badge badge-soft rounded-pill px-3 py-2">
@@ -70,117 +57,28 @@
   <!-- MAIN -->
   <main class="container" style="margin-top:-42px; margin-bottom:64px;">
     <div class="glass p-3 p-lg-4">
-      <!-- Acciones superiores -->
-      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-        <h2 class="section-title h5 m-0 d-flex align-items-center gap-2">
-          <i class="bi bi-graph-up-arrow text-success"></i> Vista general
-        </h2>
-        <div class="d-flex gap-2">
-          <a href="registro.html" class="btn btn-sm btn-acento"><i class="bi bi-plus-circle me-1"></i> Nueva licitación</a>
-        </div>
-      </div>
-
-      <!-- KPIs -->
-      <div class="row g-3 mb-3">
-        <div class="col-6 col-lg-3">
-          <div class="card-kpi">
-            <div class="hd">Total</div>
-            <div class="bd">
-              <div class="display-kpi" id="kpi-total">—</div>
-              <div class="small text-muted mt-1">Registros en el periodo</div>
-            </div>
-          </div>
-        </div>
-        <div class="col-6 col-lg-3">
-          <div class="card-kpi">
-            <div class="hd">Pendientes</div>
-            <div class="bd">
-              <div class="display-kpi" id="kpi-pendientes">—</div>
-              <div class="small text-muted mt-1">A la espera de respuesta</div>
-            </div>
-          </div>
-        </div>
-        <div class="col-6 col-lg-3">
-          <div class="card-kpi">
-            <div class="hd">Perdidas</div>
-            <div class="bd">
-              <div class="display-kpi" id="kpi-perdidas">—</div>
-              <div class="small text-muted mt-1">No adjudicadas</div>
-            </div>
-          </div>
-        </div>
-        <div class="col-6 col-lg-3">
-          <div class="card-kpi">
-            <div class="hd">Ganadas</div>
-            <div class="bd">
-              <div class="display-kpi" id="kpi-ganadas">—</div>
-              <div class="small text-muted mt-1">Adjudicadas</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- Filtros -->
-      <h2 class="section-title h5 d-flex align-items-center gap-2"><i class="bi bi-funnel text-success"></i> Filtros</h2>
-      <div class="divider"></div>
-      <form id="filtros" class="row g-3 align-items-end mb-3">
-        <div class="col-12 col-lg-4">
+      <div class="d-flex align-items-end gap-2 flex-wrap mb-3">
+        <div class="flex-grow-1">
           <label class="form-label">Buscar (Empresa o Nº licitación)</label>
-          <input id="f-q" class="form-control" placeholder="Ej: ACME o 2025-XX-0001">
+          <input id="q" class="form-control" placeholder="Ej: ACME o 2025-XX-0001" />
         </div>
-        <div class="col-6 col-lg-2">
+        <div>
           <label class="form-label">Año</label>
-          <input id="f-anio" type="number" class="form-control" min="2000" max="2100">
+          <input id="anio" type="number" class="form-control" min="2000" max="2100" />
         </div>
-        <div class="col-6 col-lg-2">
+        <div>
           <label class="form-label">Mes</label>
-          <input id="f-mes" type="number" class="form-control" min="1" max="12">
+          <input id="mes" type="number" class="form-control" min="1" max="12" />
         </div>
-        <div class="col-6 col-lg-2">
-          <label class="form-label">Estado</label>
-          <select id="f-estado" class="form-select">
-            <option value="">—</option>
-            <option>en proceso</option>
-            <option>finalizada</option>
-          </select>
+        <div class="d-flex gap-2">
+          <button id="btnBuscar" class="btn btn-success"><i class="bi bi-search me-1"></i> Buscar</button>
+          <button id="btnLimpiar" class="btn btn-outline-secondary"><i class="bi bi-eraser me-1"></i> Limpiar</button>
+          <a href="registro.html" class="btn btn-acento"><i class="bi bi-plus-circle me-1"></i> Nueva</a>
         </div>
-        <div class="col-6 col-lg-2">
-          <label class="form-label">Respuesta</label>
-          <select id="f-respuesta" class="form-select">
-            <option value="">—</option>
-            <option>pendiente</option>
-            <option>perdida</option>
-            <option>ganada</option>
-          </select>
-        </div>
-        <div class="col-6 col-lg-2">
-          <label class="form-label">Tipo</label>
-          <select id="f-tipo" class="form-select">
-            <option value="">—</option>
-            <option>cantidad definida</option>
-            <option>demanda</option>
-          </select>
-        </div>
-        <div class="col-6 col-lg-2">
-          <label class="form-label">Por página</label>
-          <select id="f-size" class="form-select">
-            <option>10</option>
-            <option selected>20</option>
-            <option>50</option>
-            <option>100</option>
-          </select>
-        </div>
-        <div class="col-6 col-lg-2">
-          <button class="btn btn-success w-100"><i class="bi bi-search me-1"></i> Buscar</button>
-        </div>
-        <div class="col-6 col-lg-2">
-          <button type="button" id="btnLimpiar" class="btn btn-outline-secondary w-100"><i class="bi bi-eraser me-1"></i> Limpiar</button>
-        </div>
-      </form>
+      </div>
 
       <!-- Tabla -->
-      <h2 class="section-title h5 d-flex align-items-center gap-2"><i class="bi bi-list-ul text-success"></i> Resultados</h2>
-      <div class="divider"></div>
       <div class="table-responsive">
         <table class="table table-sm table-hover align-middle">
           <thead class="table-light">
@@ -202,14 +100,7 @@
         </table>
       </div>
 
-      <!-- Paginación -->
-      <div class="d-flex align-items-center justify-content-between mt-2 pager">
-        <div class="d-flex gap-2">
-          <button id="prev" class="btn btn-outline-secondary btn-sm">« Anterior</button>
-          <button id="next" class="btn btn-outline-secondary btn-sm">Siguiente »</button>
-        </div>
-        <div class="small text-muted" id="info">—</div>
-      </div>
+      <div id="msg" class="small text-muted mt-2"></div>
     </div>
   </main>
 
@@ -229,39 +120,36 @@
             <div class="row g-3">
               <div class="col-12 col-md-4">
                 <label class="form-label">Estado</label>
-                <select id="e-estado" class="form-select" required>
+                <select id="e-estado" class="form-select">
                   <option>en proceso</option>
                   <option>finalizada</option>
                 </select>
-                <div class="form-hint mt-1">Etapa del proceso</div>
               </div>
               <div class="col-12 col-md-4">
                 <label class="form-label">Respuesta</label>
-                <select id="e-respuesta" class="form-select" required>
+                <select id="e-respuesta" class="form-select">
                   <option>pendiente</option>
                   <option>perdida</option>
                   <option>ganada</option>
                 </select>
-                <div class="form-hint mt-1">Resultado</div>
               </div>
               <div class="col-12 col-md-4">
                 <label class="form-label">Tipo</label>
-                <select id="e-tipo" class="form-select" required>
+                <select id="e-tipo" class="form-select">
                   <option>cantidad definida</option>
                   <option>demanda</option>
                 </select>
-                <div class="form-hint mt-1">Modalidad</div>
               </div>
               <div class="col-12">
                 <label class="form-label">Última observación</label>
                 <textarea id="e-ultima" class="form-control" rows="4" placeholder="Notas de seguimiento…"></textarea>
-                <div class="form-hint mt-1">Deja vacío para borrar la última observación.</div>
+                <div class="form-text">Deja vacío para borrar la última observación.</div>
               </div>
             </div>
           </form>
         </div>
         <div class="modal-footer">
-          <div class="me-auto small text-muted" id="edit-msg"></div>
+          <div id="edit-msg" class="me-auto small text-muted"></div>
           <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
           <button id="btnGuardar" class="btn btn-acento"><i class="bi bi-check2-circle me-1"></i> Guardar cambios</button>
         </div>
@@ -272,186 +160,150 @@
   <!-- Bootstrap JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    // ========================
-    // CONFIG API (auto-switch)
-    // ========================
-    // Como tus PHP están en /API, apuntamos allí:
+    // API BASE: auto-switch (GitHub/file -> Render; mismo servidor -> /API/)
     const RENDER_API = 'https://licitaciones-5kie.onrender.com/API/';
     const usingGithub = location.hostname.endsWith('github.io') || location.protocol === 'file:';
     const API_BASE = usingGithub ? RENDER_API : '/API/';
 
-    const API_LIST   = API_BASE + 'licitaciones_listar.php';
-    const API_RESUM  = API_BASE + 'licitaciones_resumen.php';
-    const API_UPDATE = API_BASE + 'licitacion_actualizar.php';
+    const API_BUSCAR = API_BASE + 'licitaciones_buscar.php';
+    const API_CARGAR = API_BASE + 'licitacion_cargar.php';
+    const API_EDITAR = API_BASE + 'licitacion_actualizar.php';
+    const API_BORRAR = API_BASE + 'licitacion_borrar.php';
 
-    // ========================
-    // Estado UI
-    // ========================
-    let page = 1, pageSize = 20, total = 0, currentData = [];
     const $ = (s, d=document)=>d.querySelector(s);
-
-    function fmtDateTime(v){ return v ? new Date(v).toLocaleString('es-CR') : '—'; }
     function escapeHTML(s){ return (s??'').toString().replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+    function fmtDateTime(v){ return v ? new Date(v).toLocaleString('es-CR') : '—'; }
 
-    function paramsFromFilters(){
-      const p = new URLSearchParams();
-      p.set('page', page);
-      p.set('page_size', pageSize);
-      const q = $('#f-q').value.trim();
-      const anio = $('#f-anio').value.trim();
-      const mes  = $('#f-mes').value.trim();
-      const estado = $('#f-estado').value;
-      const respuesta = $('#f-respuesta').value;
-      const tipo = $('#f-tipo').value;
-      if(q) p.set('q', q);
-      if(anio) p.set('anio', anio);
-      if(mes) p.set('mes', mes);
-      if(estado) p.set('estado', estado);
-      if(respuesta) p.set('respuesta', respuesta);
-      if(tipo) p.set('tipo', tipo);
-      return p;
-    }
+    async function buscar(){
+      const params = new URLSearchParams();
+      const q = $('#q').value.trim();
+      const anio = $('#anio').value.trim();
+      const mes  = $('#mes').value.trim();
+      if(q) params.set('q', q);
+      if(anio) params.set('anio', anio);
+      if(mes)  params.set('mes',  mes);
+      const msg = $('#msg'); const tb = $('#tbody');
+      msg.textContent = 'Cargando…';
+      tb.innerHTML = `<tr><td colspan="9" class="text-center text-muted">Cargando…</td></tr>`;
 
-    // ========================
-    // Carga KPIs
-    // ========================
-    async function cargarResumen(){
-      const r = await fetch(API_RESUM + '?' + paramsFromFilters().toString());
-      const ct = (r.headers.get('content-type')||'').toLowerCase();
-      if(!ct.includes('application/json')){
-        throw new Error('Resumen no es JSON: ' + await r.text());
-      }
-      const j = await r.json();
-      if(!r.ok || !j.ok) throw new Error(j.error || 'Error resumen');
-      $('#kpi-total').textContent      = j.total;
-      $('#kpi-pendientes').textContent = j.por_respuesta.pendiente;
-      $('#kpi-perdidas').textContent   = j.por_respuesta.perdida;
-      $('#kpi-ganadas').textContent    = j.por_respuesta.ganada;
-    }
-
-    // ========================
-    // Carga Tabla
-    // ========================
-    async function cargarTabla(){
-      const r = await fetch(API_LIST + '?' + paramsFromFilters().toString());
-      const tb = $('#tbody');
-      const ct = (r.headers.get('content-type')||'').toLowerCase();
-
-      if(!ct.includes('application/json')){
-        const txt = await r.text();
-        tb.innerHTML = `<tr><td colspan="9" class="text-danger">Error: la API no devolvió JSON.<pre class="mt-2 mb-0 small">${escapeHTML(txt)}</pre></td></tr>`;
-        return;
-      }
-      const j = await r.json();
-      if(!r.ok || !j.ok){
-        tb.innerHTML = `<tr><td colspan="9" class="text-danger">Error: ${escapeHTML(j.error || 'sin detalle')}</td></tr>`;
-        return;
-      }
-
-      total = j.total; currentData = j.rows;
-      tb.innerHTML = '';
-      if(!j.rows.length){
-        tb.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-inbox me-1"></i> Sin resultados</td></tr>`;
-      }else{
-        j.rows.forEach(row=>{
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td>${row.id}</td>
-            <td>${escapeHTML(row.numero_licitacion)}</td>
-            <td class="truncate" title="${escapeHTML(row.empresa_solicitante||'')}">${escapeHTML(row.empresa_solicitante||'')}</td>
-            <td>${escapeHTML(row.estado)}</td>
-            <td>${escapeHTML(row.respuesta)}</td>
-            <td>${escapeHTML(row.tipo)}</td>
-            <td>${fmtDateTime(row.creado_en)}</td>
-            <td class="truncate" title="${escapeHTML(row.ultima_observacion||'')}">${escapeHTML(row.ultima_observacion||'')}</td>
-            <td><button class="btn btn-sm btn-outline-primary" data-id="${row.id}" title="Editar"><i class="bi bi-pencil"></i></button></td>
-          `;
-          tb.appendChild(tr);
-        });
-      }
-
-      const ini = total ? ((page-1)*pageSize + 1) : 0;
-      const fin = Math.min(page*pageSize, total);
-      $('#info').textContent = total ? `${ini}-${fin} de ${total}` : '0 de 0';
-      $('#prev').disabled = (page<=1);
-      $('#next').disabled = (fin>=total);
-
-      tb.querySelectorAll('button[data-id]').forEach(btn=>{
-        btn.addEventListener('click', ()=>{
-          const id = Number(btn.getAttribute('data-id'));
-          const row = currentData.find(r=>r.id===id);
-          if(!row) return;
-          $('#e-id').value = row.id;
-          $('#e-estado').value = row.estado;
-          $('#e-respuesta').value = row.respuesta;
-          $('#e-tipo').value = row.tipo;
-          $('#e-ultima').value = row.ultima_observacion || '';
-          new bootstrap.Modal($('#modalEditar')).show();
-        });
-      });
-    }
-
-    async function cargarTodo(){
       try{
-        await Promise.all([cargarResumen(), cargarTabla()]);
+        const r = await fetch(API_BUSCAR + '?' + params.toString());
+        const ct = (r.headers.get('content-type')||'').toLowerCase();
+        if(!ct.includes('application/json')){
+          const text = await r.text();
+          tb.innerHTML = `<tr><td colspan="9" class="text-danger">Error: la API no devolvió JSON.<pre class="small mt-2 mb-0">${escapeHTML(text)}</pre></td></tr>`;
+          msg.textContent = '';
+          return;
+        }
+        const j = await r.json();
+        if(!r.ok || !j.ok) throw new Error(j.error || 'Error en búsqueda');
+
+        const rows = j.rows || [];
+        if(!rows.length){
+          tb.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-inbox me-1"></i> Sin resultados</td></tr>`;
+        }else{
+          tb.innerHTML = '';
+          rows.forEach(row=>{
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${row.id}</td>
+              <td>${escapeHTML(row.numero_licitacion)}</td>
+              <td class="truncate" title="${escapeHTML(row.empresa_solicitante||'')}">${escapeHTML(row.empresa_solicitante||'')}</td>
+              <td>${escapeHTML(row.estado)}</td>
+              <td>${escapeHTML(row.respuesta)}</td>
+              <td>${escapeHTML(row.tipo)}</td>
+              <td>${fmtDateTime(row.creado_en)}</td>
+              <td class="truncate" title="${escapeHTML(row.ultima_observacion||'')}">${escapeHTML(row.ultima_observacion||'')}</td>
+              <td class="text-nowrap">
+                <button class="btn btn-sm btn-outline-primary me-1" data-action="edit" data-id="${row.id}"><i class="bi bi-pencil"></i></button>
+                <button class="btn btn-sm btn-outline-danger" data-action="del" data-id="${row.id}"><i class="bi bi-trash"></i></button>
+              </td>
+            `;
+            tb.appendChild(tr);
+          });
+
+          // acciones
+          tb.querySelectorAll('button[data-action="edit"]').forEach(btn=>{
+            btn.addEventListener('click', ()=> abrirEditar(Number(btn.dataset.id)));
+          });
+          tb.querySelectorAll('button[data-action="del"]').forEach(btn=>{
+            btn.addEventListener('click', ()=> borrarRegistro(Number(btn.dataset.id)));
+          });
+        }
+        msg.textContent = `${rows.length} registro(s)`;
       }catch(err){
-        const tb = $('#tbody');
-        tb.innerHTML = `<tr><td colspan="9" class="text-danger">Error: ${escapeHTML(err && err.message ? err.message : err)}</td></tr>`;
+        $('#tbody').innerHTML = `<tr><td colspan="9" class="text-danger">⚠ ${escapeHTML(err.message||String(err))}</td></tr>`;
+        $('#msg').textContent = '';
       }
     }
 
-    // ========================
-    // Eventos UI
-    // ========================
-    document.getElementById('filtros').addEventListener('submit', (e)=>{
-      e.preventDefault();
-      page = 1;
-      pageSize = parseInt($('#f-size').value, 10) || 20;
-      cargarTodo();
-    });
+    async function abrirEditar(id){
+      const msg = $('#edit-msg'); msg.textContent = 'Cargando…';
+      try{
+        const r = await fetch(API_CARGAR + '?id=' + encodeURIComponent(id));
+        const j = await r.json();
+        if(!r.ok || !j.ok) throw new Error(j.error || 'Error al cargar');
+        $('#e-id').value = j.row.id;
+        $('#e-estado').value = j.row.estado;
+        $('#e-respuesta').value = j.row.respuesta;
+        $('#e-tipo').value = j.row.tipo;
+        $('#e-ultima').value = j.row.ultima_observacion || '';
+        msg.textContent = '';
+        new bootstrap.Modal($('#modalEditar')).show();
+      }catch(err){
+        msg.textContent = '⚠ ' + (err.message || String(err));
+        new bootstrap.Modal($('#modalEditar')).show();
+      }
+    }
 
-    document.getElementById('btnLimpiar').addEventListener('click', ()=>{
-      ['f-q','f-anio','f-mes'].forEach(id=>{ const el = document.getElementById(id); if(el) el.value=''; });
-      ['f-estado','f-respuesta','f-tipo'].forEach(id=>{ const el = document.getElementById(id); if(el) el.value=''; });
-      $('#f-size').value = '20';
-      page = 1; pageSize = 20;
-      cargarTodo();
-    });
-
-    document.getElementById('prev').addEventListener('click', ()=>{
-      if(page>1){ page--; cargarTodo(); }
-    });
-    document.getElementById('next').addEventListener('click', ()=>{
-      if(page*pageSize < total){ page++; cargarTodo(); }
-    });
-
-    // Guardar edición (FormData, igual estilo que insertar)
-    document.getElementById('btnGuardar')?.addEventListener('click', async ()=>{
+    async function guardarEdicion(){
       const id = Number($('#e-id').value);
       const fd = new FormData();
       fd.set('id', id);
       fd.set('estado', $('#e-estado').value);
       fd.set('respuesta', $('#e-respuesta').value);
       fd.set('tipo', $('#e-tipo').value);
-      fd.set('ultima_observacion', $('#e-ultima').value.trim()); // vacío => se borra (NULL)
+      fd.set('ultima_observacion', $('#e-ultima').value.trim());
 
       const msg = $('#edit-msg');
       msg.textContent = 'Guardando…';
       try{
-        const r = await fetch(API_UPDATE, { method:'POST', body: fd });
-        const ct = (r.headers.get('content-type')||'').toLowerCase();
-        const j = ct.includes('application/json') ? await r.json() : { ok:false, error: await r.text() };
-        if(!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
+        const r = await fetch(API_EDITAR, { method:'POST', body: fd });
+        const j = await r.json();
+        if(!r.ok || !j.ok) throw new Error(j.error || 'Error al actualizar');
         msg.textContent = '¡Actualizado!';
-        setTimeout(()=>bootstrap.Modal.getInstance($('#modalEditar')).hide(), 400);
-        await cargarTodo();
+        setTimeout(()=>bootstrap.Modal.getInstance($('#modalEditar')).hide(), 300);
+        buscar();
       }catch(err){
-        msg.textContent = '⚠ ' + (err && err.message ? err.message : err);
+        msg.textContent = '⚠ ' + (err.message || String(err));
       }
-    });
+    }
 
-    // init
-    cargarTodo();
+    async function borrarRegistro(id){
+      if(!confirm('¿Borrar el registro #' + id + '?')) return;
+      const fd = new FormData(); fd.set('id', id);
+      const msg = $('#msg'); msg.textContent = 'Borrando…';
+      try{
+        const r = await fetch(API_BORRAR, { method:'POST', body: fd });
+        const j = await r.json();
+        if(!r.ok || !j.ok) throw new Error(j.error || 'Error al borrar');
+        msg.textContent = 'Registro borrado';
+        buscar();
+      }catch(err){
+        msg.textContent = '⚠ ' + (err.message || String(err));
+      }
+    }
+
+    // Eventos
+    $('#btnBuscar').addEventListener('click', (e)=>{ e.preventDefault(); buscar(); });
+    $('#btnLimpiar').addEventListener('click', ()=>{
+      ['q','anio','mes'].forEach(id=>{ const el = document.getElementById(id); if(el) el.value=''; });
+      buscar();
+    });
+    $('#btnGuardar').addEventListener('click', (e)=>{ e.preventDefault(); guardarEdicion(); });
+
+    // Init
+    buscar();
   </script>
 </body>
 </html>
