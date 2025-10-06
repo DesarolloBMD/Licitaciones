@@ -18,19 +18,31 @@
     }
     body{ background:#0b0f24; color:#0e1b2a; }
     .hero{ background:var(--bg-hero); color:#eaf2ff; padding:36px 0 56px; }
+    .glass{ background:#fff; border:1px solid #e9edf3; border-radius:18px; box-shadow:0 10px 30px rgba(0,0,0,.08); }
     .badge-soft{ background:#e8ffe8; color:#0b4912; border:1px solid #bde5bd; }
     .btn-acento{ background:var(--acento); color:#fff; border:none; }
     .btn-acento:hover{ filter:brightness(1.05); color:#fff; }
-    .glass{ background:#fff; border:1px solid #e9edf3; border-radius:18px; box-shadow:0 10px 30px rgba(0,0,0,.08); }
-    table td, table th { vertical-align: top; }
+    .metric{ border:1px solid #e9edf3; border-radius:16px; background:#fff; padding:14px 16px; }
+    .metric .k{ font-weight:700; font-size:1.25rem; }
+    .metric .l{ color:#6b7b94; font-size:.85rem; }
+    .metric.badge-pend{ background: #fff8e6; border-color:#ffe7a5; }
+    .metric.badge-perd{ background: #ffefef; border-color:#ffc6c6; }
+    .metric.badge-gan{  background: #eaffea; border-color:#bcebbd; }
+    .metric.badge-proc{ background: #eef5ff; border-color:#cfe0ff; }
+    .metric.badge-fin{  background: #f1f1f1; border-color:#e5e7eb; }
+
     .table thead th{ white-space:nowrap; position:sticky; top:0; background:#f8fafc; z-index:2; }
-    .table-responsive{ max-height:70vh; }
+    .table-responsive{ max-height:68vh; }
     .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+    .chip { display:inline-flex; align-items:center; gap:.35rem; border-radius:999px; padding:.18rem .6rem; font-size:.78rem; border:1px solid #e5e7eb; background:#fff; }
+    .chip.ganada   { background:#eaffea; border-color:#bcebbd; }
+    .chip.perdida  { background:#ffefef; border-color:#ffc6c6; }
+    .chip.pendiente{ background:#fff8e6; border-color:#ffe7a5; }
   </style>
 </head>
 <body>
 
-  <!-- Encabezado -->
+  <!-- Header -->
   <header class="hero">
     <div class="container">
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
@@ -41,7 +53,7 @@
           </span>
           <div>
             <h1 class="h4 m-0">Tabulación de Licitaciones</h1>
-            <div class="text-white-50 small">Vista de solo lectura con todos los campos</div>
+            <div class="text-white-50 small">Vista general, filtros y métricas</div>
           </div>
         </div>
         <div class="d-flex align-items-center gap-2">
@@ -54,15 +66,71 @@
     </div>
   </header>
 
-  <!-- Contenido -->
-  <main class="container" style="margin-top:-30px; margin-bottom:48px;">
+  <!-- Main -->
+  <main class="container" style="margin-top:-28px; margin-bottom:56px;">
     <div class="p-3 p-lg-4 glass">
-      <div class="d-flex align-items-center justify-content-between mb-3">
-        <h2 class="h6 m-0 text-secondary">Registros</h2>
-        <div id="msg" class="small text-muted"></div>
+
+      <!-- Filtros -->
+      <div class="row g-2 g-lg-3 align-items-end">
+        <div class="col-12 col-lg-4">
+          <label class="form-label mb-1">Buscar (empresa o Nº licitación)</label>
+          <input id="q" type="search" class="form-control" placeholder="Ejem. ACME o 2024-AB-12345">
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label mb-1">Año</label>
+          <select id="anio" class="form-select">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label mb-1">Mes</label>
+          <select id="mes" class="form-select">
+            <option value="">Todos</option>
+            <option value="1">enero</option><option value="2">febrero</option>
+            <option value="3">marzo</option><option value="4">abril</option>
+            <option value="5">mayo</option><option value="6">junio</option>
+            <option value="7">julio</option><option value="8">agosto</option>
+            <option value="9">septiembre</option><option value="10">octubre</option>
+            <option value="11">noviembre</option><option value="12">diciembre</option>
+          </select>
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label mb-1">Estado</label>
+          <select id="estado" class="form-select">
+            <option value="">Todos</option>
+            <option>en proceso</option>
+            <option>finalizada</option>
+          </select>
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label mb-1">Respuesta</label>
+          <select id="respuesta" class="form-select">
+            <option value="">Todas</option>
+            <option>pendiente</option>
+            <option>perdida</option>
+            <option>ganada</option>
+          </select>
+        </div>
       </div>
 
-      <div class="table-responsive border rounded-4">
+      <div class="d-flex gap-2 mt-3">
+        <button id="btnBuscar" class="btn btn-acento"><i class="bi bi-search me-1"></i>Aplicar filtros</button>
+        <button id="btnLimpiar" class="btn btn-outline-secondary"><i class="bi bi-eraser me-1"></i>Limpiar</button>
+        <div id="msg" class="ms-auto small text-muted"></div>
+      </div>
+
+      <!-- Métricas -->
+      <div class="row g-2 g-md-3 mt-3">
+        <div class="col-6 col-lg-2"><div class="metric text-center"><div class="k" id="m-total">0</div><div class="l">Total</div></div></div>
+        <div class="col-6 col-lg-2"><div class="metric badge-pend text-center"><div class="k" id="m-pend">0</div><div class="l">Pendientes</div></div></div>
+        <div class="col-6 col-lg-2"><div class="metric badge-gan text-center"><div class="k" id="m-gan">0</div><div class="l">Ganadas</div></div></div>
+        <div class="col-6 col-lg-2"><div class="metric badge-perd text-center"><div class="k" id="m-perd">0</div><div class="l">Perdidas</div></div></div>
+        <div class="col-6 col-lg-2"><div class="metric badge-proc text-center"><div class="k" id="m-proc">0</div><div class="l">En proceso</div></div></div>
+        <div class="col-6 col-lg-2"><div class="metric badge-fin text-center"><div class="k" id="m-fin">0</div><div class="l">Finalizadas</div></div></div>
+      </div>
+
+      <!-- Tabla -->
+      <div class="table-responsive border rounded-4 mt-3">
         <table class="table table-sm table-hover align-middle mb-0">
           <thead class="table-light">
             <tr>
@@ -75,8 +143,8 @@
               <th>Nº Licitación</th>
               <th>Empresa</th>
               <th>Descripción</th>
-              <th>SICOP</th>
-              <th>BMD</th>
+              <th class="text-end">SICOP</th>
+              <th class="text-end">BMD</th>
               <th>Encargado</th>
               <th>Estado</th>
               <th>Respuesta</th>
@@ -92,30 +160,103 @@
           </tbody>
         </table>
       </div>
+
     </div>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    // ===== Config API: usa /api/ (minúsculas) =====
-    const API_BASE   = '/api/';
-    const API_CARGAR = API_BASE + 'tabulacion_cargar.php';
+    // ===== API base (minúscula) =====
+    const API_CARGAR = '/api/tabulacion_cargar.php';
 
     const $ = (s, d=document)=>d.querySelector(s);
+    let ALL_ROWS = [];
 
-    function escapeHTML(s){
-      return (s ?? '').toString().replace(/[&<>"']/g, m => ({
-        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;'
-      }[m]));
-    }
-    function fmtMoney(v){
-      const n = Number(v); if (Number.isNaN(n)) return '—';
-      return '₡ ' + n.toLocaleString('es-CR',{minimumFractionDigits:2, maximumFractionDigits:2});
-    }
-    function fmtDate(v){ return v ? new Date(v + 'T00:00:00').toLocaleDateString('es-CR') : '—'; }
+    function escapeHTML(s){ return (s ?? '').toString().replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+    function fmtMoney(v){ const n = Number(v); return isNaN(n)? '—' : '₡ '+ n.toLocaleString('es-CR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+    function fmtDate(v){ return v ? new Date(v+'T00:00:00').toLocaleDateString('es-CR') : '—'; }
     function fmtDateTime(v){ return v ? new Date(v).toLocaleString('es-CR') : '—'; }
 
-    async function cargarTabla(){
+    function fillYears(rows){
+      const sel = $('#anio');
+      const years = [...new Set(rows.map(r=>r.anio))].sort();
+      sel.innerHTML = '<option value="">Todos</option>' + years.map(y=>`<option>${y}</option>`).join('');
+    }
+
+    function applyFilters(){
+      const q = $('#q').value.trim().toLowerCase();
+      const anio = $('#anio').value;
+      const mes = $('#mes').value;
+      const est = $('#estado').value;
+      const res = $('#respuesta').value;
+
+      const rows = ALL_ROWS.filter(r=>{
+        if (anio && String(r.anio) !== anio) return false;
+        if (mes && String(r.mes) !== mes)    return false;
+        if (est && r.estado !== est)         return false;
+        if (res && r.respuesta !== res)      return false;
+        if (q){
+          const blob = `${r.numero_licitacion||''} ${r.empresa_solicitante||''}`.toLowerCase();
+          if (!blob.includes(q)) return false;
+        }
+        return true;
+      });
+
+      renderMetrics(rows);
+      renderTable(rows);
+    }
+
+    function renderMetrics(rows){
+      $('#m-total').textContent = rows.length;
+      $('#m-pend').textContent  = rows.filter(r=>r.respuesta==='pendiente').length;
+      $('#m-gan').textContent   = rows.filter(r=>r.respuesta==='ganada').length;
+      $('#m-perd').textContent  = rows.filter(r=>r.respuesta==='perdida').length;
+      $('#m-proc').textContent  = rows.filter(r=>r.estado==='en proceso').length;
+      $('#m-fin').textContent   = rows.filter(r=>r.estado==='finalizada').length;
+    }
+
+    function renderTable(rows){
+      const tb = $('#tbody');
+      if(!rows.length){
+        tb.innerHTML = `<tr><td colspan="19" class="text-center py-4">Sin resultados</td></tr>`;
+        return;
+      }
+      tb.innerHTML = '';
+      rows.forEach(r=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="mono">${r.id}</td>
+          <td>${r.anio}</td>
+          <td>${r.mes}</td>
+          <td>${fmtDate(r.fecha_presentacion)}</td>
+          <td>${fmtDate(r.fecha_cierre)}</td>
+          <td>${fmtDate(r.fecha)}</td>
+          <td class="mono">${escapeHTML(r.numero_licitacion)}</td>
+          <td>${escapeHTML(r.empresa_solicitante||'')}</td>
+          <td style="min-width:260px">${escapeHTML(r.descripcion||'')}</td>
+          <td class="text-end">${fmtMoney(r.presupuesto_sicop)}</td>
+          <td class="text-end">${fmtMoney(r.presupuesto_bmd)}</td>
+          <td>${escapeHTML(r.encargado)}</td>
+          <td>${escapeHTML(r.estado)}</td>
+          <td>
+            <span class="chip ${r.respuesta}">
+              ${r.respuesta==='ganada' ? '<i class="bi bi-trophy"></i>' :
+                r.respuesta==='perdida' ? '<i class="bi bi-x-octagon"></i>' :
+                '<i class="bi bi-envelope-open"></i>'}
+              ${escapeHTML(r.respuesta)}
+            </span>
+          </td>
+          <td>${escapeHTML(r.tipo)}</td>
+          <td style="min-width:200px">${escapeHTML(r.observaciones_iniciales||'')}</td>
+          <td style="min-width:200px">${escapeHTML(r.ultima_observacion||'')}</td>
+          <td class="mono">${fmtDateTime(r.creado_en)}</td>
+          <td class="mono">${fmtDateTime(r.actualizado_en)}</td>
+        `;
+        tb.appendChild(tr);
+      });
+    }
+
+    async function cargar(){
       const msg = $('#msg');
       const tb  = $('#tbody');
       msg.textContent = 'Cargando…';
@@ -123,68 +264,45 @@
 
       try{
         const r = await fetch(API_CARGAR, { cache:'no-store' });
-        const ct = (r.headers.get('content-type') || '').toLowerCase();
-
+        const ct = (r.headers.get('content-type')||'').toLowerCase();
         if(!ct.includes('application/json')){
           const text = await r.text();
           tb.innerHTML = `<tr><td colspan="19">
-              <div class="alert alert-danger small mb-0">
-                <div class="fw-semibold">Error: la API no devolvió JSON.</div>
-                <pre class="mono mb-0" style="white-space:pre-wrap">${escapeHTML(text)}</pre>
-              </div>
-            </td></tr>`;
+            <div class="alert alert-danger small mb-0">
+              <div class="fw-semibold">Error: la API no devolvió JSON.</div>
+              <pre class="mono mb-0" style="white-space:pre-wrap">${escapeHTML(text)}</pre>
+            </div>
+          </td></tr>`;
           msg.textContent = '';
           return;
         }
-
         const j = await r.json();
         if(!r.ok || !j.ok) throw new Error(j.error || 'Error en API');
-
-        const rows = j.rows || [];
-        if(!rows.length){
-          tb.innerHTML = `<tr><td colspan="19" class="text-center py-4">Sin resultados</td></tr>`;
-          msg.textContent = '0 registros';
-          return;
-        }
-
-        tb.innerHTML = '';
-        rows.forEach(row=>{
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td class="mono">${row.id}</td>
-            <td>${row.anio}</td>
-            <td>${row.mes}</td>
-            <td>${fmtDate(row.fecha_presentacion)}</td>
-            <td>${fmtDate(row.fecha_cierre)}</td>
-            <td>${fmtDate(row.fecha)}</td>
-            <td class="mono">${escapeHTML(row.numero_licitacion)}</td>
-            <td>${escapeHTML(row.empresa_solicitante||'')}</td>
-            <td style="min-width:260px">${escapeHTML(row.descripcion||'')}</td>
-            <td class="text-end">${fmtMoney(row.presupuesto_sicop)}</td>
-            <td class="text-end">${fmtMoney(row.presupuesto_bmd)}</td>
-            <td>${escapeHTML(row.encargado)}</td>
-            <td>${escapeHTML(row.estado)}</td>
-            <td>${escapeHTML(row.respuesta)}</td>
-            <td>${escapeHTML(row.tipo)}</td>
-            <td style="min-width:220px">${escapeHTML(row.observaciones_iniciales||'')}</td>
-            <td style="min-width:220px">${escapeHTML(row.ultima_observacion||'')}</td>
-            <td class="mono">${fmtDateTime(row.creado_en)}</td>
-            <td class="mono">${fmtDateTime(row.actualizado_en)}</td>
-          `;
-          tb.appendChild(tr);
-        });
-
-        msg.textContent = `${rows.length} registro(s)`;
+        ALL_ROWS = j.rows || [];
+        fillYears(ALL_ROWS);
+        msg.textContent = `${ALL_ROWS.length} registro(s)`;
+        applyFilters();
       }catch(err){
-        $('#tbody').innerHTML = `<tr><td colspan="19">
-          <div class="alert alert-danger small mb-0">⚠ ${escapeHTML(err.message||String(err))}</div>
-        </td></tr>`;
+        tb.innerHTML = `<tr><td colspan="19"><div class="alert alert-danger small mb-0">⚠ ${escapeHTML(err.message||String(err))}</div></td></tr>`;
         msg.textContent = '';
       }
     }
 
-    document.getElementById('btnRecargar').addEventListener('click', cargarTabla);
-    cargarTabla();
+    // Eventos
+    $('#btnRecargar').addEventListener('click', cargar);
+    $('#btnBuscar').addEventListener('click', e=>{ e.preventDefault(); applyFilters(); });
+    $('#btnLimpiar').addEventListener('click', ()=>{
+      ['q','anio','mes','estado','respuesta'].forEach(id=>{ const el = document.getElementById(id); if(el) el.value=''; });
+      applyFilters();
+    });
+    ['q','anio','mes','estado','respuesta'].forEach(id=>{
+      const el = document.getElementById(id);
+      el && el.addEventListener('change', applyFilters);
+      el && el.addEventListener('input',  (e)=> { if(e.target.id==='q') applyFilters(); });
+    });
+
+    // Init
+    cargar();
   </script>
 </body>
 </html>
