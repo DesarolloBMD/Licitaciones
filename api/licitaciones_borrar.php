@@ -5,39 +5,34 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); echo json_encode(['ok'=>false,'error'=>'Método no permitido']); exit; }
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); echo json_encode(['ok'=>false,'error'=>'Usa POST']); exit; }
 
 function jexit(bool $ok, array $extra=[]): void {
-  http_response_code($ok?200:400);
+  http_response_code($ok ? 200 : 400);
   echo json_encode(array_merge(['ok'=>$ok], $extra), JSON_UNESCAPED_UNICODE);
   exit;
 }
 
 $id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT);
-if (!$id || $id < 1) jexit(false, ['error'=>'ID inválido']);
+if (!$id) jexit(false, ['error'=>'ID inválido']);
 
 $DATABASE_URL = getenv('DATABASE_URL');
-if (!$DATABASE_URL || stripos($DATABASE_URL, 'postgres') === false) {
+if (!$DATABASE_URL || stripos($DATABASE_URL,'postgres')===false) {
   $DATABASE_URL = 'postgresql://licitaciones_bmd_user:vFgswY5U7MaSqqexdhjgAE5M9fBpT2OQ@dpg-d3g2v7j3fgac73c4eek0-a.oregon-postgres.render.com:5432/licitaciones_bmd?sslmode=require';
 }
-
 try {
   $parts = parse_url($DATABASE_URL);
-  $dsn = sprintf('pgsql:host=%s;port=%d;dbname=%s;sslmode=%s',
-    $parts['host'],
-    $parts['port'] ?? 5432,
-    ltrim($parts['path'],'/'),
-    (parse_str($parts['query'] ?? '', $qs) ? ($qs['sslmode'] ?? 'require') : 'require')
+  $dsn = sprintf('pgsql:host=%s;port=%d;dbname=%s;sslmode=require',
+    $parts['host'], isset($parts['port'])?(int)$parts['port']:5432, ltrim($parts['path'],'/')
   );
   $pdo = new PDO($dsn, $parts['user'], $parts['pass'], [
-    PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,
-    PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,
+    PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC
   ]);
 
-  $stmt = $pdo->prepare("DELETE FROM public.licitaciones WHERE id = :id");
-  $stmt->execute([':id'=>$id]);
-
-  jexit(true, ['id'=>$id, 'deleted'=>$stmt->rowCount()]);
-} catch (Throwable $e) {
+  $st = $pdo->prepare("DELETE FROM public.licitaciones WHERE id=:id");
+  $st->execute([':id'=>$id]);
+  if ($st->rowCount() < 1) jexit(false, ['error'=>'No existe el ID']);
+  jexit(true, ['deleted'=>1]);
+} catch(Throwable $e){
   jexit(false, ['error'=>'DB: '.$e->getMessage()]);
 }

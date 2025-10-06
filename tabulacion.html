@@ -123,9 +123,7 @@
               <th></th>
             </tr>
           </thead>
-          <tbody id="tbody">
-            <!-- Se llena por JS -->
-          </tbody>
+          <tbody id="tbody"><!-- JS llena aquí --></tbody>
         </table>
       </div>
 
@@ -186,16 +184,14 @@
     </div>
   </div>
 
-  <!-- Bootstrap JS -->
+  <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
-  <!-- Lógica Tabulación -->
   <script>
   document.addEventListener('DOMContentLoaded', () => {
-    // Base: raíz del servicio (sin /API/)
-    const RENDER_API = 'https://licitaciones-5kie.onrender.com/'; 
+    // Endpoints en /API/ (tu servicio Render los debe exponer así)
+    const RENDER_API = 'https://licitaciones-5kie.onrender.com/API/';
     const usingGithub = location.hostname.endsWith('github.io') || location.protocol === 'file:';
-    const API_BASE = usingGithub ? RENDER_API : '/';
+    const API_BASE = usingGithub ? RENDER_API : '/API/';
 
     const API_BUSCAR = API_BASE + 'licitaciones_buscar.php';
     const API_CARGAR = API_BASE + 'licitacion_cargar.php';
@@ -238,7 +234,9 @@
       tb.innerHTML = `<tr><td colspan="9" class="text-center text-muted">Cargando…</td></tr>`;
 
       try{
-        const r  = await fetch(API_BUSCAR + '?' + params.toString());
+        const qs = params.toString();
+        const url = API_BUSCAR + (qs ? '?' + qs : '');
+        const r  = await fetch(url);
         const ct = (r.headers.get('content-type')||'').toLowerCase();
         if(!ct.includes('application/json')){
           const text = await r.text();
@@ -276,7 +274,6 @@
             tb.appendChild(tr);
           });
 
-          // acciones
           tb.querySelectorAll('button[data-action="edit"]').forEach(btn=>{
             btn.addEventListener('click', ()=> abrirEditar(Number(btn.dataset.id)));
           });
