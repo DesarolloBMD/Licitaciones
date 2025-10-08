@@ -2,6 +2,10 @@
 // API/procedimientos_importar.php
 declare(strict_types=1);
 
+// Unas ayudas para archivos grandes / cargas lentas
+@ini_set('memory_limit', '512M');
+@set_time_limit(0);
+
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 /* ==============================
@@ -40,8 +44,8 @@ if ($method === 'GET') {
             <label class="form-label">Archivo (.csv, .tsv o .txt)</label>
             <input class="form-control" type="file" name="archivo" accept=".csv,.tsv,.txt" required />
             <div class="form-text">
-              Encabezados esperados exactamente como en la tabla (se acepta “Mes de Descarga” / “Mes de descarga”).
-              Fechas estilo <code class="mono">dd/mm/yyyy</code>. <code>PROD_ID</code> en notación científica se normaliza.
+              Encabezados exactos como en la tabla (se acepta “Mes de Descarga” / “Mes de descarga”).
+              Fechas <code class="mono">dd/mm/yyyy</code>. <code>PROD_ID</code> en notación científica se normaliza.
             </div>
           </div>
 
@@ -114,9 +118,7 @@ if ($method === 'GET') {
     }
   });
 
-  btnCancelar.addEventListener('click', ()=>{
-    if (controller) controller.abort();
-  });
+  btnCancelar.addEventListener('click', ()=>{ if (controller) controller.abort(); });
   </script>
 </body>
 </html>
@@ -163,8 +165,9 @@ try {
   $dsn = sprintf('pgsql:host=%s;port=%d;dbname=%s;sslmode=require',
     $p['host'], isset($p['port'])?(int)$p['port']:5432, ltrim($p['path'],'/'));
   $pdo = new PDO($dsn, $p['user'], $p['pass'], [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    PDO::ATTR_EMULATE_PREPARES   => true, // ayuda con textos largos/números grandes
   ]);
   $pdo->exec("SET datestyle TO 'ISO, DMY'");
 } catch (Throwable $e) {
@@ -230,7 +233,9 @@ $canon = [
   'CANTIDAD','UNIDAD_MEDIDA','MONTO_UNITARIO','MONEDA_PRECIO_EST',
   'FECHA_SOL_CONTRA_CL','PROD_ID_CL'
 ];
+// sinónimos comunes de encabezado
 $syn = [ 'MES DE DESCARGA' => 'Mes de Descarga' ];
+
 $ph = [
   'Mes de Descarga'=>'c_mes_descarga', 'CEDULA'=>'c_cedula', 'INSTITUCION'=>'c_institucion', 'ANO'=>'c_ano',
   'NUMERO_PROCEDIMIENTO'=>'c_numero_procedimiento', 'DESCR_PROCEDIMIENTO'=>'c_descr_procedimiento',
@@ -264,9 +269,11 @@ if (($counts[$delimiter] ?? 0) === 0) $delimiter = ",";
 
 function parse_line(string $line, string $delim): array { return str_getcsv($line, $delim); }
 
+// leer encabezados
 $header = parse_line(fgets($fh), $delimiter);
 $header = array_map('norm_header', $header);
 
+// mapping de encabezados
 $map = []; $canon_set = array_fill_keys($canon, false); $en_archivo = [];
 for ($i=0; $i<count($header); $i++) {
   $h = $header[$i]; if ($h==='') continue;
@@ -299,19 +306,24 @@ while (($line = fgets($fh)) !== false) {
   $row = parse_line($line, $delimiter);
   if (count($row)===1 && trim($row[0])==='') continue;
 
+  // valores brutos por columna canónica
   $vals = [];
   foreach ($map as $idx=>$canonName) $vals[$canonName] = $row[$idx] ?? null;
 
+  // normalización por tipo
   $params = [];
   foreach ($canon as $cname) {
     $raw = $vals[$cname] ?? null;
     switch ($cname) {
+      // FECHAS
       case 'fecha_rev':
       case 'FECHA_ADJUD_FIRME':
       case 'FECHA_SOL_CONTRA':
       case 'FECHA_SOL_CONTRA_CL':
         $params[':'.$ph[$cname]] = norm_date($raw);
         break;
+
+      // NUMÉRICOS
       case 'MONTO_ADJU_LINEA':
       case 'MONTO_ADJU_LINEA_CRC':
       case 'MONTO_ADJU_LINEA_USD':
@@ -319,10 +331,14 @@ while (($line = fgets($fh)) !== false) {
       case 'MONTO_UNITARIO':
         $params[':'.$ph[$cname]] = norm_num($raw);
         break;
+
+      // GRANDES (texto) — exponente a dígitos
       case 'PROD_ID':
       case 'PROD_ID_CL':
         $params[':'.$ph[$cname]] = norm_bigint_text($raw);
         break;
+
+      // TEXTO
       default:
         $val = trim((string)$raw);
         $params[':'.$ph[$cname]] = ($val==='') ? null : $val;
@@ -330,6 +346,7 @@ while (($line = fgets($fh)) !== false) {
     }
   }
 
+  // SAVEPOINT por fila
   $sp = 'sp_'.$linea;
   $pdo->exec("SAVEPOINT $sp");
   try {
@@ -344,4 +361,5 @@ while (($line = fgets($fh)) !== false) {
 $pdo->commit();
 fclose($fh);
 
+// Respuesta
 echo json_encode(['ok'=>true,'insertados'=>$insertados,'saltados'=>$saltados,'errores'=>$errores,'advertencias'=>[]], JSON_UNESCAPED_UNICODE);
