@@ -341,7 +341,6 @@ while (($line = fgets($fh)) !== false) {
     if (count($errores)<1000) $errores[] = "Línea $linea: ".$e->getMessage();
   }
 }
-
 $pdo->commit();
 fclose($fh);
 
