@@ -7,6 +7,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
+
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 
 // Solo POST + archivo
@@ -21,8 +22,10 @@ if (!isset($_FILES['archivo']) || $_FILES['archivo']['error'] !== UPLOAD_ERR_OK)
   exit;
 }
 
+// Si el cliente cancela, queremos que PHP PARE (no seguir en background)
+ignore_user_abort(false);
+
 // ===== Conexión a PostgreSQL (Render) =====
-// Preferir DATABASE_URL; fallback a tu URL externa con sslmode=require
 $DATABASE_URL = getenv('DATABASE_URL');
 if (!$DATABASE_URL || stripos($DATABASE_URL, 'postgres') === false) {
   $DATABASE_URL = 'postgresql://licitaciones_bmd_user:vFgswY5U7MaSqqexdhjgAE5M9fBpT2OQ@dpg-d3g2v7j3fgac73c4eek0-a.oregon-postgres.render.com:5432/licitaciones_bmd?sslmode=require';
@@ -45,7 +48,7 @@ try {
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
   ]);
 
-  // Aceptar fechas tipo 26/2/2025
+  // Fechas estilo 26/2/2025
   $pdo->exec("SET datestyle TO 'ISO, DMY'");
 
 } catch (Throwable $e) {
@@ -61,45 +64,68 @@ function norm_header(string $s): string {
   $s = preg_replace('/\s+/', ' ', $s);
   return $s;
 }
-function norm_key(string $s): string {
-  // clave para comparar encabezados (case-insensitive)
-  return mb_strtoupper(norm_header($s), 'UTF-8');
-}
+function norm_key(string $s): string { return mb_strtoupper(norm_header($s), 'UTF-8'); }
+
 function norm_date(?string $s): ?string {
   $s = trim((string)$s);
   if ($s === '' || strtoupper($s) === 'NULL') return null;
-
-  // 1) dd/mm/yyyy o d/m/yyyy (admite / o -)
   $s2 = str_replace('/', '-', $s);
-
   $fmts = ['d-m-Y','d-m-y','Y-m-d','d-m-Y H:i:s','d-m-Y H:i'];
   foreach ($fmts as $fmt) {
     $dt = DateTime::createFromFormat($fmt, $s2);
     if ($dt && $dt->format($fmt) === $s2) return $dt->format('Y-m-d');
   }
-
-  // 2) Serial de Excel (base 1899-12-30)
+  // Serial excel
   if (is_numeric($s)) {
     $v = (int)$s;
-    if ($v > 25569 && $v < 60000) {
-      return gmdate('Y-m-d', ($v - 25569) * 86400);
-    }
+    if ($v > 25569 && $v < 60000) return gmdate('Y-m-d', ($v - 25569) * 86400);
   }
   return null;
 }
 function norm_num(?string $s): ?float {
   $s = trim((string)$s);
   if ($s === '' || strtoupper($s) === 'NULL') return null;
-  // quitar símbolos monetarios y espacios
   $s = str_replace(['₡','$','CRC','USD',' '], '', $s);
-  // si hay una sola coma y ningún punto -> coma decimal
   if (substr_count($s, ',') === 1 && substr_count($s, '.') === 0) {
-    $s = str_replace(',', '.', $s);
+    $s = str_replace(',', '.', $s); // coma decimal
   } else {
-    // quitar separadores de miles
-    $s = str_replace(',', '', $s);
+    $s = str_replace(',', '', $s);  // miles
   }
   return is_numeric($s) ? (float)$s : null;
+}
+
+/**
+ * Convierte "8,11E+15" / "8.11e+15" a "8110000000000000".
+ * Devuelve null si no hay dígitos.
+ */
+function norm_bigint_text(?string $s): ?string {
+  $s = trim((string)$s);
+  if ($s === '' || strtoupper($s) === 'NULL') return null;
+  $s = str_replace(' ', '', $s);
+  $s = str_replace(',', '.', $s); // decimal como punto
+
+  if (preg_match('/^(\d+(?:\.\d+)?)e\+?(-?\d+)$/i', $s, $m)) {
+    $mant = $m[1];
+    $exp  = (int)$m[2];
+
+    $int = $mant;
+    $frac = '';
+    if (strpos($mant, '.') !== false) {
+      [$int, $frac] = explode('.', $mant, 2);
+    }
+    // mover punto a la derecha exp posiciones
+    if ($exp >= strlen($frac)) {
+      $digits = $int . $frac . str_repeat('0', $exp - strlen($frac));
+    } else {
+      $digits = $int . substr($frac, 0, $exp); // recorte si exp < len(frac)
+    }
+    $digits = ltrim($digits, '0');
+    return $digits === '' ? '0' : $digits;
+  }
+
+  // Si no es notación científica: quitar no-dígitos y dejar solo números
+  $digits = preg_replace('/\D+/', '', $s);
+  return $digits === '' ? null : $digits;
 }
 
 // ===== Definición de columnas (canon) =====
@@ -114,11 +140,10 @@ $canon = [
   'CANTIDAD','UNIDAD_MEDIDA','MONTO_UNITARIO','MONEDA_PRECIO_EST',
   'FECHA_SOL_CONTRA_CL','PROD_ID_CL'
 ];
-$canon_keys = array_map('norm_key', $canon);
 
-// Sinónimos/correcciones típicas de encabezados
+// Sinónimos/correcciones típicas
 $syn = [
-  'MES DE DESCARGA' => 'Mes de Descarga',
+  'MES DE DESCARGA' => 'Mes de Descarga', // cubre "Mes de descarga"
 ];
 
 // Mapa canon → placeholder
@@ -165,7 +190,7 @@ if (!$fh) {
   exit;
 }
 
-// lee primera línea cruda para detectar separador
+// primera línea cruda para detectar separador
 $firstLineRaw = fgets($fh);
 if ($firstLineRaw === false) {
   fclose($fh);
@@ -173,7 +198,6 @@ if ($firstLineRaw === false) {
   echo json_encode(['ok'=>false,'error'=>'Archivo vacío'], JSON_UNESCAPED_UNICODE);
   exit;
 }
-// volver al inicio para procesar completo con el separador
 rewind($fh);
 
 // detectar delimitador (tab; ; ,)
@@ -188,7 +212,6 @@ if (($counts[$delimiter] ?? 0) === 0) $delimiter = ",";
 
 // ===== Parseo rápido del CSV =====
 function parse_line(string $line, string $delim): array {
-  // str_getcsv maneja comillas y escapes correctamente
   return str_getcsv($line, $delim);
 }
 
@@ -200,22 +223,20 @@ $header = array_map('norm_header', $header);
 $map = [];
 $canon_set = array_fill_keys($canon, false);
 $en_archivo = [];
+
 for ($i=0; $i<count($header); $i++) {
   $h  = $header[$i];
   if ($h === '') continue;
   $hk = norm_key($h);
 
-  // aplicar sinónimos
+  $hCanon = null;
   if (isset($syn[$hk])) {
     $hCanon = $syn[$hk];
   } else {
-    // buscar match por clave case-insensitive
-    $hCanon = null;
     foreach ($canon as $c) {
       if (norm_key($c) === $hk) { $hCanon = $c; break; }
     }
   }
-
   if ($hCanon !== null) {
     $map[$i] = $hCanon;
     $canon_set[$hCanon] = true;
@@ -238,18 +259,22 @@ if ($faltan) {
 }
 
 // ===== Preparar SQL =====
-$colsSql = implode('","', $canon);
-$placeSql = implode(', ', array_map(fn($c)=>':'.$ph[$c], $canon));
+$colsSql   = implode('","', $canon);
+$placeSql  = implode(', ', array_map(fn($c)=>':'.$ph[$c], $canon));
 $sql = 'INSERT INTO public."Procedimientos Adjudicados" ("'.$colsSql.'") VALUES ('.$placeSql.')';
 $stmt = $pdo->prepare($sql);
 
 // ===== Bucle de inserción con SAVEPOINT por fila =====
 $insertados = 0; $saltados = 0; $errores = [];
 $linea = 1; // incluyendo encabezados
-
 $pdo->beginTransaction();
+
 while (($line = fgets($fh)) !== false) {
   $linea++;
+
+  // si el usuario canceló la subida desde el front, detenemos
+  if (connection_aborted()) { break; }
+
   $row = parse_line($line, $delimiter);
   if (count($row) === 1 && trim($row[0]) === '') { continue; } // línea vacía
 
@@ -259,10 +284,11 @@ while (($line = fgets($fh)) !== false) {
     $vals[$canonName] = $row[$idx] ?? null;
   }
 
-  // normalizar por tipo (fechas/números)
+  // normalizar por tipo (fechas/números/ids)
   $params = [];
   foreach ($canon as $cname) {
     $raw = $vals[$cname] ?? null;
+
     switch ($cname) {
       // FECHAS
       case 'fecha_rev':
@@ -271,6 +297,7 @@ while (($line = fgets($fh)) !== false) {
       case 'FECHA_SOL_CONTRA_CL':
         $params[':'.$ph[$cname]] = norm_date($raw);
         break;
+
       // NUMÉRICOS
       case 'MONTO_ADJU_LINEA':
       case 'MONTO_ADJU_LINEA_CRC':
@@ -279,8 +306,14 @@ while (($line = fgets($fh)) !== false) {
       case 'MONTO_UNITARIO':
         $params[':'.$ph[$cname]] = norm_num($raw);
         break;
+
+      // IDS GRANDES (como texto sin notación científica)
+      case 'PROD_ID':
+      case 'PROD_ID_CL':
+        $params[':'.$ph[$cname]] = norm_bigint_text($raw);
+        break;
+
       default:
-        // texto llano
         $val = trim((string)$raw);
         $params[':'.$ph[$cname]] = ($val === '') ? null : $val;
         break;
@@ -296,20 +329,20 @@ while (($line = fgets($fh)) !== false) {
   } catch (Throwable $e) {
     $pdo->exec("ROLLBACK TO SAVEPOINT $sp");
     $saltados++;
-    // guardamos hasta 1000 errores para no reventar la respuesta
     if (count($errores) < 1000) {
       $errores[] = "Línea $linea: ".$e->getMessage();
     }
   }
 }
+
 $pdo->commit();
 fclose($fh);
 
 // ===== Respuesta =====
 echo json_encode([
-  'ok'=>true,
-  'insertados'=>$insertados,
-  'saltados'=>$saltados,
-  'errores'=> $errores,         // errores “duros” por fila
-  'advertencias'=>[],           // reservado si quieres añadir warnings no fatales
+  'ok'        => true,
+  'insertados'=> $insertados,
+  'saltados'  => $saltados,
+  'errores'   => $errores,
+  'advertencias'=>[],
 ], JSON_UNESCAPED_UNICODE);
