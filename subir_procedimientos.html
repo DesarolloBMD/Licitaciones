@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gestión de Licitaciones — Subir procedimientos</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+  <style>
+    :root{ --acento:#0B4912; --acento-2:#126a1a; }
+    body{ background:#0b0f24; color:#0e1b2a; }
+    .hero{ background:linear-gradient(180deg,#0b0f24 0%, #0e132c 100%); color:#eaf2ff; padding:48px 0 56px; }
+    .glass{ background:#fff; border:1px solid rgba(0,0,0,.06); border-radius:18px; box-shadow:0 10px 30px rgba(0,0,0,.08); }
+    .btn-acento{ background:var(--acento); color:#fff; border:none; }
+    .btn-acento:hover{ filter:brightness(1.05); color:#fff; }
+    .small-muted{ color:#6b7b91; font-size:.9rem; }
+    code{ background:#f3f6fa; padding:.15rem .35rem; border-radius:.35rem; }
+    .progress{ height:8px; }
+  </style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="container">
+    <div class="d-flex align-items-center gap-3">
+      <span class="d-inline-flex align-items-center justify-content-center bg-success rounded-3"
+            style="width:48px;height:48px;box-shadow:0 8px 24px rgba(16,185,129,.25)">
+        <i class="bi bi-upload text-white fs-4"></i>
+      </span>
+      <div>
+        <h1 class="h4 m-0">Importar “Procedimientos Adjudicados”</h1>
+        <div class="text-white-50 small">Sube un archivo .csv o .txt con encabezados</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="container" style="margin-top:-36px;margin-bottom:64px;">
+  <div class="glass p-3 p-lg-4">
+    <form id="frm" class="vstack gap-3" enctype="multipart/form-data">
+      <div class="row g-3">
+        <div class="col-12 col-lg-8">
+          <label class="form-label">Archivo (.csv o .txt) con encabezados</label>
+          <input class="form-control" type="file" name="archivo" id="archivo" accept=".csv,.txt" required />
+          <div class="form-text small-muted">
+            El separador puede ser <code>,</code> o <code>;</code>. Los nombres de columnas deben coincidir con la tabla.
+          </div>
+        </div>
+        <div class="col-12 col-lg-4">
+          <label class="form-label">Opciones</label>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="tieneHeader" checked>
+            <label class="form-check-label" for="tieneHeader">Primera fila contiene encabezados</label>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <button class="btn btn-acento" id="btnEnviar">
+          <i class="bi bi-cloud-arrow-up me-1"></i> Subir e importar
+        </button>
+        <button class="btn btn-outline-secondary" type="reset" id="btnReset">
+          <i class="bi bi-eraser me-1"></i> Limpiar
+        </button>
+      </div>
+
+      <div class="d-none" id="pgwrap">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <small class="text-muted">Progreso</small>
+          <small class="text-muted" id="pct">0%</small>
+        </div>
+        <div class="progress">
+          <div class="progress-bar bg-success" id="bar" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div id="msg" class="small"></div>
+
+      <div id="res" class="mt-3 small"></div>
+    </form>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  const API_URL = 'api/procedimientos_importar.php'; // ruta relativa en tu servicio Render
+  const $ = (s,d=document)=>d.querySelector(s);
+
+  function setProgress(p){
+    $('#pgwrap').classList.remove('d-none');
+    $('#bar').style.width = p + '%';
+    $('#pct').textContent = p + '%';
+  }
+
+  $('#frm').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const f = $('#archivo');
+    if(!f.files.length){ $('#msg').textContent = 'Seleccione un archivo.'; return; }
+
+    $('#msg').textContent = 'Subiendo…';
+    setProgress(15);
+
+    const fd = new FormData();
+    fd.append('archivo', f.files[0]);
+    fd.append('tiene_header', $('#tieneHeader').checked ? '1' : '0');
+
+    try{
+      const r = await fetch(API_URL, { method:'POST', body: fd });
+      setProgress(65);
+      const ct = (r.headers.get('content-type')||'').toLowerCase();
+      if(!ct.includes('application/json')){
+        const text = await r.text();
+        $('#msg').innerHTML = '⚠ La API no devolvió JSON.<br><pre style="white-space:pre-wrap">'+
+          text.replace(/[&<>]/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;' }[m]))+'</pre>';
+        return;
+      }
+      const j = await r.json();
+      setProgress(100);
+
+      if(!r.ok || !j.ok){
+        $('#msg').innerHTML = '⚠ Error: ' + (j.error || 'desconocido');
+        if(j.detalle) $('#res').textContent = JSON.stringify(j.detalle,null,2);
+        return;
+      }
+      $('#msg').innerHTML = '✅ Importación completada';
+      $('#res').innerHTML =
+        `<div class="alert alert-success mt-2">
+           Insertados: <strong>${j.insertados}</strong> — Saltados: <strong>${j.saltados}</strong> — Errores: <strong>${j.errores}</strong>
+         </div>`;
+      if(j.warnings?.length){
+        $('#res').innerHTML += `<details class="mt-2"><summary>Advertencias (${j.warnings.length})</summary><pre>${j.warnings.join('\n')}</pre></details>`;
+      }
+    }catch(err){
+      $('#msg').textContent = '⚠ ' + (err.message || String(err));
+    }
+  });
+
+  $('#btnReset').addEventListener('click', ()=>{
+    $('#msg').textContent=''; $('#res').textContent='';
+    $('#bar').style.width='0%'; $('#pct').textContent='0%'; $('#pgwrap').classList.add('d-none');
+  });
+</script>
+</body>
+</html>
