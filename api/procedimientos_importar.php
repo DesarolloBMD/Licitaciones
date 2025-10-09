@@ -82,7 +82,6 @@ ignore_user_abort(false);
    ============================== */
 $DATABASE_URL = getenv('DATABASE_URL');
 if (!$DATABASE_URL || stripos($DATABASE_URL,'postgres')===false) {
-  // fallback de Render
   $DATABASE_URL = 'postgresql://licitaciones_bmd_user:vFgswY5U7MaSqqexdhjgAE5M9fBpT2OQ@dpg-d3g2v7j3fgac73c4eek0-a.oregon-postgres.render.com:5432/licitaciones_bmd?sslmode=require';
 }
 try {
@@ -103,17 +102,32 @@ try {
 }
 
 /* ==============================
-   HELPERS
+   HELPERS (encoding robusto)
    ============================== */
+function to_utf8($s): string {
+  $s = (string)($s ?? '');
+  if ($s === '') return '';
+  if (function_exists('mb_detect_encoding') && mb_detect_encoding($s, 'UTF-8', true)) return $s;
+  // intenta convertir desde orígenes comunes
+  $encs = ['Windows-1252','ISO-8859-1','ISO-8859-15'];
+  foreach ($encs as $enc) {
+    $conv = @mb_convert_encoding($s, 'UTF-8', $enc);
+    if ($conv !== false && $conv !== '') return $conv;
+  }
+  return $s; // último recurso
+}
 function u_upper(string $s): string {
   return function_exists('mb_strtoupper') ? mb_strtoupper($s,'UTF-8') : strtoupper($s);
 }
 function norm_header($s): string {
-  $s = (string)($s ?? '');
-  $s = preg_replace('/^\xEF\xBB\xBF/','',$s);
-  $s = str_replace(["\xC2\xA0","\xE2\x80\x8B","\xE2\x80\x8C","\xE2\x80\x8D"], ' ', $s); // NBSP/ZW*
+  $s = to_utf8($s);
+  // quita BOM y espacios raros
+  $s = preg_replace('/^\xEF\xBB\xBF/', '', $s);
+  $s = str_replace(["\xC2\xA0","\xE2\x80\x8B","\xE2\x80\x8C","\xE2\x80\x8D"], ' ', $s); // NBSP / ZW*
   $s = trim($s);
-  return preg_replace('/\s+/u', ' ', $s);
+  $tmp = preg_replace('/\s+/u', ' ', $s);
+  if ($tmp === null) $tmp = preg_replace('/\s+/', ' ', $s); // fallback sin 'u'
+  return $tmp ?? '';
 }
 function norm_key($s): string { return u_upper(norm_header((string)$s)); }
 
@@ -146,25 +160,29 @@ function norm_bigint_text(?string $s): ?string {
   $digits = preg_replace('/\D+/', '', $s); return $digits === '' ? null : $digits;
 }
 
-/* —— Normalización robusta de etiquetas (encabezados) —— */
+/* —— Normalización de etiquetas (encabezados) —— */
 function strip_accents($s): string {
-  $s = (string)($s ?? '');
+  $s = to_utf8($s);
   $from = 'ÁáÉéÍíÓóÚúÜüÑñ';
   $to   = 'AaEeIiOoUuUuNn';
   return strtr($s, $from, $to);
 }
 function label_key($s): string {
-  $s = norm_header((string)$s);
+  $s = norm_header($s);
   $s = strip_accents($s);
   $s = u_upper($s);
-  $s = preg_replace('/[^A-Z0-9]+/u', ' ', $s);
-  $s = preg_replace('/\s+/u', ' ', trim($s));
-  // quitar stopwords comunes
+  $tmp = preg_replace('/[^A-Z0-9]+/u', ' ', $s);
+  if ($tmp === null) $tmp = preg_replace('/[^A-Z0-9]+/', ' ', $s); // fallback
+  $s = $tmp ?? '';
+  $tmp = preg_replace('/\s+/u', ' ', trim($s));
+  if ($tmp === null) $tmp = preg_replace('/\s+/', ' ', trim($s));
+  $s = $tmp ?? '';
+  // quitar stopwords
   $tokens = array_values(array_filter(explode(' ', $s), function($t){
     static $stop=['DE','DEL','EL','LA','LOS','LAS','OF','THE'];
     return $t!=='' && !in_array($t,$stop,true);
   }));
-  return implode(' ', $tokens); // p.ej. "ANO REPORTE"
+  return implode(' ', $tokens); // ej: "ANO REPORTE"
 }
 
 /* ==============================
@@ -228,21 +246,14 @@ $tmp = $_FILES['archivo']['tmp_name'];
 $fh  = fopen($tmp, 'r');
 if (!$fh) { http_response_code(400); echo json_encode(['ok'=>false,'error'=>'No se pudo abrir el archivo subido'], JSON_UNESCAPED_UNICODE); exit; }
 
-/* Detectar delimitador con la primera línea */
+/* Detectar delimitador */
 $firstLineRaw = fgets($fh);
 if ($firstLineRaw === false) { fclose($fh); http_response_code(400); echo json_encode(['ok'=>false,'error'=>'Archivo vacío'], JSON_UNESCAPED_UNICODE); exit; }
 rewind($fh);
-$cands = [
-  ","  => substr_count($firstLineRaw, ","),
-  ";"  => substr_count($firstLineRaw, ";"),
-  "\t" => substr_count($firstLineRaw, "\t"),
-  "|"  => substr_count($firstLineRaw, "|")
-];
-arsort($cands);
-$delimiter = array_key_first($cands) ?: ",";
-if (($cands[$delimiter] ?? 0) === 0) $delimiter = ",";
+$cands = [","=>substr_count($firstLineRaw,","), ";"=>substr_count($firstLineRaw,";"), "\t"=>substr_count($firstLineRaw,"\t"), "|"=>substr_count($firstLineRaw,"|")];
+arsort($cands); $delimiter = array_key_first($cands) ?: ","; if (($cands[$delimiter] ?? 0) === 0) $delimiter = ",";
 
-/* Leer encabezados con fgetcsv y normalizarlos */
+/* Leer encabezados */
 $header = fgetcsv($fh, 0, $delimiter);
 if ($header === false || $header === null) {
   fclose($fh);
@@ -251,10 +262,9 @@ if ($header === false || $header === null) {
   exit;
 }
 $header = array_map('norm_header', (array)$header);
-/* Para detectar encabezados repetidos en medio del archivo */
 $header_norm_join = implode('|', array_map('label_key', $header));
 
-/* Mapear encabezados robusto */
+/* Mapear encabezados */
 $map = []; $canon_set = array_fill_keys($canon, false); $en_archivo=[];
 for ($i=0; $i<count($header); $i++) {
   $h = $header[$i]; if ($h==='') continue;
@@ -301,7 +311,7 @@ while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
   $vals = [];
   foreach ($map as $idx=>$canonName) { $vals[$canonName] = $row[$idx] ?? null; }
 
-  // Sin derivación: si NO viene "Año de reporte" en el archivo, queda NULL
+  // Si NO viene "Año de reporte" en el archivo, queda NULL (sin derivar)
   if (!array_key_exists('Año de reporte', $vals)) {
     $vals['Año de reporte'] = null;
   }
