@@ -102,14 +102,13 @@ try {
 }
 
 /* ==============================
-   HELPERS (encoding robusto)
+   HELPERS (encoding + normalización)
    ============================== */
 function to_utf8($s): string {
   $s = (string)($s ?? '');
   if ($s === '') return '';
   if (function_exists('mb_detect_encoding') && mb_detect_encoding($s, 'UTF-8', true)) return $s;
-  $encs = ['Windows-1252','ISO-8859-1','ISO-8859-15'];
-  foreach ($encs as $enc) {
+  foreach (['Windows-1252','ISO-8859-1','ISO-8859-15'] as $enc) {
     $conv = @mb_convert_encoding($s, 'UTF-8', $enc);
     if ($conv !== false && $conv !== '') return $conv;
   }
@@ -279,18 +278,20 @@ if ($faltan) {
 }
 
 /* ==============================
-   PREP INSERT
+   PREP INSERT (con fingerprint + ON CONFLICT)
    ============================== */
 $colsSql  = implode('","', $canon);
 $placeSql = implode(', ', array_map(fn($c)=>':'.$ph[$c], $canon));
-$sql = 'INSERT INTO public."Procedimientos Adjudicados" ("'.$colsSql.'") VALUES ('.$placeSql.')';
+$sql = 'INSERT INTO public."Procedimientos Adjudicados" ("'.$colsSql.'","fingerprint")
+        VALUES ('.$placeSql.', :fp)
+        ON CONFLICT ("fingerprint") DO NOTHING';
 $stmt = $pdo->prepare($sql);
 
 /* ==============================
-   IMPORTAR (desduplicación por archivo)
+   IMPORTAR (desduplicación por archivo + BD)
    ============================== */
 $insertados=0; $saltados=0; $errores=[]; $linea=1;
-$seen = []; // huellas ya vistas en ESTE upload
+$seen = []; // huellas vistas en ESTE upload
 
 $pdo->beginTransaction();
 
@@ -352,24 +353,24 @@ while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
     }
   }
 
-  // Huella de la fila ya normalizada para evitar dobles inserciones en el mismo upload
+  // Huella de la fila YA normalizada (orden canónico, separador '|')
   $concat = [];
   foreach ($canon as $cname) {
     $concat[] = (string)($params[':'.$ph[$cname]] ?? '');
   }
-  $fp = sha1(implode('|', $concat));
-  if (isset($seen[$fp])) {
-    $saltados++;            // duplicada en este archivo
-    continue;
-  }
+  $fp = md5(implode('|', $concat));
+  $params[':fp'] = $fp;
+
+  // Desduplicación dentro del mismo upload (evita insertar y forzar conflicto innecesario)
+  if (isset($seen[$fp])) { $saltados++; continue; }
   $seen[$fp] = true;
 
-  // Insert con SAVEPOINT (tolerante a errores)
+  // Insert con SAVEPOINT (tolerante a errores) + ON CONFLICT DO NOTHING
   $sp = 'sp_'.$linea;
   $pdo->exec("SAVEPOINT $sp");
   try {
     $stmt->execute($params);
-    $insertados++;
+    if ($stmt->rowCount() === 1) $insertados++; else $saltados++; // conflicto → 0 filas
   } catch (Throwable $e) {
     $pdo->exec("ROLLBACK TO SAVEPOINT $sp");
     $saltados++;
@@ -379,7 +380,7 @@ while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
 $pdo->commit();
 fclose($fh);
 
-/* Respuesta JSON (incluye cualquier 'debug' que haya quedado en el buffer) */
+/* Respuesta JSON */
 $debug = ob_get_contents();
 ob_end_clean();
 echo json_encode([
