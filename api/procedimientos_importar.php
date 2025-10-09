@@ -7,9 +7,7 @@ declare(strict_types=1);
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
-/* ==============================
-   UI (GET) opcional
-   ============================== */
+/* ============================== UI (GET) opcional ============================== */
 if ($method === 'GET') {
   header('Content-Type: text/html; charset=utf-8'); ?>
 <!doctype html>
@@ -24,9 +22,7 @@ if ($method === 'GET') {
 </body></html>
 <?php exit; }
 
-/* ==============================
-   CORS / HEADERS (POST) + JSON-safe
-   ============================== */
+/* ========================= CORS / HEADERS (POST) + JSON-safe ========================= */
 if ($method === 'OPTIONS') { http_response_code(204); exit; }
 
 header('Content-Type: application/json; charset=utf-8');
@@ -34,7 +30,7 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
-ini_set('display_errors', '0'); // no escupir HTML
+ini_set('display_errors', '0');
 ob_start();
 set_error_handler(function($severity,$message,$file,$line){
   throw new ErrorException($message,0,$severity,$file,$line);
@@ -46,27 +42,95 @@ register_shutdown_function(function(){
     header('Content-Type: application/json; charset=utf-8', true);
     $out = ob_get_clean();
     echo json_encode([
-      'ok'    => false,
-      'error' => 'Fallo fatal: '.$err['message'].' @ '.$err['file'].':'.$err['line'],
-      'debug' => $out ? trim(strip_tags($out)) : null,
+      'ok'=>false,
+      'error'=>'Fallo fatal: '.$err['message'].' @ '.$err['file'].':'.$err['line'],
+      'debug'=>$out ? trim(strip_tags($out)) : null,
     ], JSON_UNESCAPED_UNICODE);
   }
 });
 
+/* =============== Helpers de diagnóstico para uploads =============== */
+function parse_size_to_bytes(string $val): int {
+  $val = trim($val);
+  if ($val === '') return 0;
+  $last = strtolower($val[strlen($val)-1]);
+  $num  = (float)$val;
+  switch ($last) {
+    case 'g': $num *= 1024;
+    case 'm': $num *= 1024;
+    case 'k': $num *= 1024;
+  }
+  return (int)$num;
+}
+function upload_errmsg(?int $code): string {
+  return match($code){
+    UPLOAD_ERR_INI_SIZE   => 'El archivo excede upload_max_filesize.',
+    UPLOAD_ERR_FORM_SIZE  => 'El archivo excede MAX_FILE_SIZE del formulario.',
+    UPLOAD_ERR_PARTIAL    => 'El archivo se subió parcialmente.',
+    UPLOAD_ERR_NO_FILE    => 'No se subió ningún archivo.',
+    UPLOAD_ERR_NO_TMP_DIR => 'Falta el directorio temporal en el servidor.',
+    UPLOAD_ERR_CANT_WRITE => 'No se pudo escribir el archivo en disco.',
+    UPLOAD_ERR_EXTENSION  => 'Una extensión de PHP detuvo la subida.',
+    default               => 'Error desconocido al subir el archivo.'
+  };
+}
+
+/* ============================ Validaciones iniciales ============================ */
 if ($method !== 'POST') {
   http_response_code(405);
   echo json_encode(['ok'=>false,'error'=>'Método no permitido (usa POST)'], JSON_UNESCAPED_UNICODE);
   exit;
 }
-if (!isset($_FILES['archivo']) || $_FILES['archivo']['error'] !== UPLOAD_ERR_OK) {
-  http_response_code(400);
-  echo json_encode(['ok'=>false,'error'=>'Archivo no recibido (campo "archivo")'], JSON_UNESCAPED_UNICODE);
+
+/* Chequeo de “payload demasiado grande” (supera post_max_size) */
+$pmx = parse_size_to_bytes(ini_get('post_max_size') ?: '8M');
+$cl  = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+if (empty($_FILES) && $cl > 0 && $pmx > 0 && $cl > $pmx) {
+  http_response_code(413);
+  echo json_encode([
+    'ok'=>false,
+    'error'=>'El cuerpo del POST excede post_max_size.',
+    'detalle'=>[
+      'CONTENT_LENGTH_bytes'=>$cl,
+      'post_max_size'=>ini_get('post_max_size'),
+      'upload_max_filesize'=>ini_get('upload_max_filesize'),
+      'sugerencia'=>'Sube los límites en tu hosting (por ej. post_max_size y upload_max_filesize).'
+    ]
+  ], JSON_UNESCAPED_UNICODE);
   exit;
 }
 
-/* ==============================
-   Validación extensión
-   ============================== */
+/* Validación de archivo presente */
+if (!isset($_FILES['archivo'])) {
+  http_response_code(400);
+  echo json_encode([
+    'ok'=>false,
+    'error'=>'Archivo no recibido (campo "archivo")',
+    'detalle'=>[
+      'content_type'=>$_SERVER['CONTENT_TYPE'] ?? null,
+      'CONTENT_LENGTH_bytes'=>(int)($_SERVER['CONTENT_LENGTH'] ?? 0),
+      'post_max_size'=>ini_get('post_max_size'),
+      'upload_max_filesize'=>ini_get('upload_max_filesize')
+    ]
+  ], JSON_UNESCAPED_UNICODE);
+  exit;
+}
+if ($_FILES['archivo']['error'] !== UPLOAD_ERR_OK) {
+  http_response_code(400);
+  echo json_encode([
+    'ok'=>false,
+    'error'=>'Error al subir archivo: '.upload_errmsg((int)$_FILES['archivo']['error']),
+    'detalle'=>[
+      'codigo'=>$_FILES['archivo']['error'],
+      'post_max_size'=>ini_get('post_max_size'),
+      'upload_max_filesize'=>ini_get('upload_max_filesize'),
+      'size_bytes'=>$_FILES['archivo']['size'] ?? null
+    ]
+  ], JSON_UNESCAPED_UNICODE);
+  exit;
+}
+
+/* ============================== Validación extensión ============================== */
 $name = $_FILES['archivo']['name'] ?? '';
 $ext  = strtolower(pathinfo($name, PATHINFO_EXTENSION));
 if (!in_array($ext, ['csv','txt','tsv'], true)) {
@@ -75,11 +139,7 @@ if (!in_array($ext, ['csv','txt','tsv'], true)) {
   exit;
 }
 
-ignore_user_abort(false);
-
-/* ==============================
-   CONEXIÓN A POSTGRES
-   ============================== */
+/* ============================== CONEXIÓN A POSTGRES ============================== */
 $DATABASE_URL = getenv('DATABASE_URL');
 if (!$DATABASE_URL || stripos($DATABASE_URL,'postgres')===false) {
   $DATABASE_URL = 'postgresql://licitaciones_bmd_user:vFgswY5U7MaSqqexdhjgAE5M9fBpT2OQ@dpg-d3g2v7j3fgac73c4eek0-a.oregon-postgres.render.com:5432/licitaciones_bmd?sslmode=require';
@@ -101,9 +161,7 @@ try {
   exit;
 }
 
-/* ==============================
-   HELPERS (encoding + normalización)
-   ============================== */
+/* ============================== HELPERS de parsing ============================== */
 function to_utf8($s): string {
   $s = (string)($s ?? '');
   if ($s === '') return '';
@@ -126,8 +184,20 @@ function norm_header($s): string {
   if ($tmp === null) $tmp = preg_replace('/\s+/', ' ', $s);
   return $tmp ?? '';
 }
-function norm_key($s): string { return u_upper(norm_header((string)$s)); }
-
+function label_key($s): string {
+  $s = norm_header($s);
+  $s = strtr($s, 'ÁáÉéÍíÓóÚúÜüÑñ', 'AaEeIiOoUuUuNn'); // quitar acentos
+  $s = u_upper($s);
+  $tmp = preg_replace('/[^A-Z0-9]+/u', ' ', $s);
+  if ($tmp === null) $tmp = preg_replace('/[^A-Z0-9]+/', ' ', $s);
+  $s = $tmp ?? '';
+  $tmp = preg_replace('/\s+/u', ' ', trim($s));
+  if ($tmp === null) $tmp = preg_replace('/\s+/', ' ', trim($s));
+  $s = $tmp ?? '';
+  // stopwords
+  $tokens = array_values(array_filter(explode(' ', $s), fn($t)=>$t!=='' && !in_array($t,['DE','DEL','EL','LA','LOS','LAS','OF','THE'],true)));
+  return implode(' ', $tokens);
+}
 function norm_date(?string $s): ?string {
   $s = trim((string)$s); if ($s==='' || strtoupper($s)==='NULL') return null;
   $s2 = str_replace('/', '-', $s);
@@ -157,33 +227,7 @@ function norm_bigint_text(?string $s): ?string {
   $digits = preg_replace('/\D+/', '', $s); return $digits === '' ? null : $digits;
 }
 
-/* —— Normalización de etiquetas (encabezados) —— */
-function strip_accents($s): string {
-  $s = to_utf8($s);
-  $from = 'ÁáÉéÍíÓóÚúÜüÑñ';
-  $to   = 'AaEeIiOoUuUuNn';
-  return strtr($s, $from, $to);
-}
-function label_key($s): string {
-  $s = norm_header($s);
-  $s = strip_accents($s);
-  $s = u_upper($s);
-  $tmp = preg_replace('/[^A-Z0-9]+/u', ' ', $s);
-  if ($tmp === null) $tmp = preg_replace('/[^A-Z0-9]+/', ' ', $s);
-  $s = $tmp ?? '';
-  $tmp = preg_replace('/\s+/u', ' ', trim($s));
-  if ($tmp === null) $tmp = preg_replace('/\s+/', ' ', trim($s));
-  $s = $tmp ?? '';
-  $tokens = array_values(array_filter(explode(' ', $s), function($t){
-    static $stop=['DE','DEL','EL','LA','LOS','LAS','OF','THE'];
-    return $t!=='' && !in_array($t,$stop,true);
-  }));
-  return implode(' ', $tokens); // ej: "ANO REPORTE"
-}
-
-/* ==============================
-   DEFINICIÓN DE COLUMNAS
-   ============================== */
+/* ============================== Definición de columnas ============================== */
 $canon = [
   'Mes de Descarga',
   'Año de reporte',
@@ -230,14 +274,12 @@ $ph = [
   'PROD_ID_CL'=>'c_prod_id_cl'
 ];
 
-/* —— Diccionario canónico por clave normalizada —— */
+/* —— Diccionario canónico —— */
 $canonByKey = [];
 foreach ($canon as $c) { $canonByKey[label_key($c)] = $c; }
 foreach ($syn as $k => $target) { $canonByKey[label_key($k)] = $target; }
 
-/* ==============================
-   ABRIR ARCHIVO + DELIMITADOR
-   ============================== */
+/* ============================== Abrir archivo + delimitador ============================== */
 $tmp = $_FILES['archivo']['tmp_name'];
 $fh  = fopen($tmp, 'r');
 if (!$fh) { http_response_code(400); echo json_encode(['ok'=>false,'error'=>'No se pudo abrir el archivo subido'], JSON_UNESCAPED_UNICODE); exit; }
@@ -277,53 +319,32 @@ if ($faltan) {
   exit;
 }
 
-/* ===========================================================
-   ESCANEAR MESES/AÑOS DEL ARCHIVO PARA REEMPLAZAR EN BD
-   =========================================================== */
-$mesKeys = []; // key: "mes|año" → ['mes'=>..., 'ano'=>...]
+/* ======================= Escanear meses del archivo (para reemplazo) ======================= */
+$mesKeys = [];               // key: "mes"
 $posAfterHeader = ftell($fh);
 while (($rowScan = fgetcsv($fh, 0, $delimiter)) !== false) {
-  // saltar filas vacías
   $allEmpty = true;
   foreach ($rowScan as $c) { if (trim((string)$c) !== '') { $allEmpty=false; break; } }
   if ($allEmpty) continue;
-  // saltar un segundo encabezado
   $row_norm_join = implode('|', array_map('label_key', array_map('strval', $rowScan)));
   if ($row_norm_join === $header_norm_join) continue;
 
   $valsScan = [];
   foreach ($map as $idx=>$canonName) { $valsScan[$canonName] = $rowScan[$idx] ?? null; }
 
-  $mes   = trim((string)($valsScan['Mes de Descarga'] ?? ''));
-  $anoRp = isset($valsScan['Año de reporte']) ? trim((string)$valsScan['Año de reporte']) : null;
-  if ($mes !== '') {
-    $mesKeys[$mes.'|'.($anoRp ?? '')] = ['mes'=>$mes, 'ano'=>$anoRp];
-  }
+  $mes = trim((string)($valsScan['Mes de Descarga'] ?? ''));
+  if ($mes !== '') $mesKeys[$mes] = true;
 }
-/* volver a la primera fila de datos */
 fseek($fh, $posAfterHeader);
 
-/* ==============================
-   PREP DELETE (reemplazo) + BEGIN
-   ============================== */
+/* ============================== DELETE por Mes de Descarga (reemplazo) ============================== */
 $pdo->beginTransaction();
 if (!empty($mesKeys)) {
-  $del = $pdo->prepare(
-    'DELETE FROM public."Procedimientos Adjudicados"
-     WHERE "Mes de Descarga" = :mes
-       AND ( ( :ano IS NULL AND "Año de reporte" IS NULL ) OR "Año de reporte" = :ano )'
-  );
-  foreach ($mesKeys as $pair) {
-    $del->execute([
-      ':mes' => $pair['mes'],
-      ':ano' => ($pair['ano'] === '' ? null : $pair['ano']),
-    ]);
-  }
+  $del = $pdo->prepare('DELETE FROM public."Procedimientos Adjudicados" WHERE "Mes de Descarga" = :mes');
+  foreach (array_keys($mesKeys) as $mes) { $del->execute([':mes'=>$mes]); }
 }
 
-/* ==============================
-   PREP INSERT (con fingerprint + ON CONFLICT)
-   ============================== */
+/* ============================== PREP INSERT (fingerprint + ON CONFLICT) ============================== */
 $colsSql  = implode('","', $canon);
 $placeSql = implode(', ', array_map(fn($c)=>':'.$ph[$c], $canon));
 $sql = 'INSERT INTO public."Procedimientos Adjudicados" ("'.$colsSql.'","fingerprint")
@@ -331,34 +352,24 @@ $sql = 'INSERT INTO public."Procedimientos Adjudicados" ("'.$colsSql.'","fingerp
         ON CONFLICT ("fingerprint") DO NOTHING';
 $stmt = $pdo->prepare($sql);
 
-/* ==============================
-   IMPORTAR (desduplicación por archivo + BD)
-   ============================== */
+/* ============================== Importar (desdup archivo + BD) ============================== */
 $insertados=0; $saltados=0; $errores=[]; $linea=1;
-$seen = []; // huellas vistas en ESTE upload
+$seen = [];
 
 while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
   $linea++;
 
-  // Saltar filas completamente vacías
   $allEmpty = true;
   foreach ($row as $cell) { if (trim((string)$cell) !== '') { $allEmpty = false; break; } }
   if ($allEmpty) continue;
 
-  // Saltar encabezados repetidos dentro del archivo
   $row_norm_join = implode('|', array_map('label_key', array_map('strval', $row)));
   if ($row_norm_join === $header_norm_join) continue;
 
-  // valores brutos por columna canónica
   $vals = [];
   foreach ($map as $idx=>$canonName) { $vals[$canonName] = $row[$idx] ?? null; }
+  if (!array_key_exists('Año de reporte', $vals)) $vals['Año de reporte'] = null;
 
-  // Si NO viene "Año de reporte" en el archivo, queda NULL (sin derivar)
-  if (!array_key_exists('Año de reporte', $vals)) {
-    $vals['Año de reporte'] = null;
-  }
-
-  // Normalización por tipo
   $params = [];
   foreach ($canon as $cname) {
     $raw = $vals[$cname] ?? null;
@@ -369,7 +380,6 @@ while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
       case 'FECHA_SOL_CONTRA_CL':
         $params[':'.$ph[$cname]] = norm_date($raw);
         break;
-
       case 'MONTO_ADJU_LINEA':
       case 'MONTO_ADJU_LINEA_CRC':
       case 'MONTO_ADJU_LINEA_USD':
@@ -377,17 +387,14 @@ while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
       case 'MONTO_UNITARIO':
         $params[':'.$ph[$cname]] = norm_num($raw);
         break;
-
       case 'PROD_ID':
       case 'PROD_ID_CL':
         $params[':'.$ph[$cname]] = norm_bigint_text($raw);
         break;
-
-      case 'Año de reporte': // guardar exactamente lo que viene (texto)
+      case 'Año de reporte':
         $val = trim((string)$raw);
         $params[':'.$ph[$cname]] = ($val === '') ? null : $val;
         break;
-
       default:
         $val = trim((string)$raw);
         $params[':'.$ph[$cname]] = ($val==='') ? null : $val;
@@ -395,24 +402,19 @@ while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
     }
   }
 
-  // Huella de la fila YA normalizada (orden canónico, separador '|')
   $concat = [];
-  foreach ($canon as $cname) {
-    $concat[] = (string)($params[':'.$ph[$cname]] ?? '');
-  }
+  foreach ($canon as $cname) { $concat[] = (string)($params[':'.$ph[$cname]] ?? ''); }
   $fp = md5(implode('|', $concat));
   $params[':fp'] = $fp;
 
-  // Desduplicación dentro del mismo upload (evita insertar y forzar conflicto innecesario)
   if (isset($seen[$fp])) { $saltados++; continue; }
   $seen[$fp] = true;
 
-  // Insert con SAVEPOINT (tolerante a errores) + ON CONFLICT DO NOTHING
   $sp = 'sp_'.$linea;
   $pdo->exec("SAVEPOINT $sp");
   try {
     $stmt->execute($params);
-    if ($stmt->rowCount() === 1) $insertados++; else $saltados++; // conflicto → 0 filas
+    if ($stmt->rowCount() === 1) $insertados++; else $saltados++;
   } catch (Throwable $e) {
     $pdo->exec("ROLLBACK TO SAVEPOINT $sp");
     $saltados++;
@@ -422,15 +424,14 @@ while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
 $pdo->commit();
 fclose($fh);
 
-/* Respuesta JSON */
+/* ============================== Respuesta ============================== */
 $debug = ob_get_contents();
 ob_end_clean();
 echo json_encode([
-  'ok'         => true,
-  'insertados' => $insertados,
-  'saltados'   => $saltados,
-  'errores'    => $errores,
-  'warnings'   => [],
-  'debug'      => $debug ? trim(strip_tags($debug)) : null,
+  'ok'=>true,
+  'insertados'=>$insertados,
+  'saltados'=>$saltados,
+  'errores'=>$errores,
+  'warnings'=>[],
+  'debug'=>$debug ? trim(strip_tags($debug)) : null,
 ], JSON_UNESCAPED_UNICODE);
-
