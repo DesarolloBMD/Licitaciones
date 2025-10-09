@@ -167,15 +167,6 @@ function extract_year(?string $s): ?int {
   if (ctype_digit($s) && strlen($s)===4) { $y=(int)$s; if ($y>=1900 && $y<=2100) return $y; }
   return null;
 }
-function derive_ano_reporte(array $vals): ?int {
-  if (isset($vals['Año de reporte'])) { $y = extract_year((string)$vals['Año de reporte']); if ($y) return $y; }
-  if (isset($vals['ANO'])) { $y = extract_year((string)$vals['ANO']); if ($y) return $y; }
-  foreach (['FECHA_ADJUD_FIRME','fecha_rev','FECHA_SOL_CONTRA','FECHA_SOL_CONTRA_CL'] as $d) {
-    if (!empty($vals[$d])) { $nd = norm_date((string)$vals[$d]); if ($nd) return (int)substr($nd,0,4); }
-  }
-  if (isset($vals['Mes de Descarga'])) { $y = extract_year((string)$vals['Mes de Descarga']); if ($y) return $y; }
-  return null;
-}
 
 /* ===========================
    DEFINICIÓN DE COLUMNAS
@@ -194,10 +185,25 @@ $canon = [
 ];
 $optional = ['Año de reporte' => true];
 
+/* Variantes de encabezado para mapear exactamente "Año de reporte" */
 $syn = [
-  'MES DE DESCARGA' => 'Mes de Descarga',
-  'AÑO DE REPORTE'  => 'Año de reporte',
-  'ANIO DE REPORTE' => 'Año de reporte',
+  'MES DE DESCARGA'  => 'Mes de Descarga',
+
+  'AÑO DE REPORTE'   => 'Año de reporte',
+  'ANIO DE REPORTE'  => 'Año de reporte',
+  'AÑO REPORTE'      => 'Año de reporte',
+  'ANIO REPORTE'     => 'Año de reporte',
+  'AÑO_DEL_REPORTE'  => 'Año de reporte',
+  'ANIO_DEL_REPORTE' => 'Año de reporte',
+  'AÑO-REPORTE'      => 'Año de reporte',
+  'ANIO-REPORTE'     => 'Año de reporte',
+  'AÑOREPORTE'       => 'Año de reporte',
+  'ANIOREPORTE'      => 'Año de reporte',
+  'AÑOREP'           => 'Año de reporte',
+  'YEAR OF REPORT'   => 'Año de reporte',
+  'YEAR REPORT'      => 'Año de reporte',
+  'YEAR_REPORT'      => 'Año de reporte',
+  'YEAR'             => 'Año de reporte'  // si así lo mandan explícitamente
 ];
 
 $ph = [
@@ -285,11 +291,11 @@ while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
 
   // valores brutos por columna canónica
   $vals = [];
-  foreach ($map as $idx=>$canonName) $vals[$canonName] = $row[$idx] ?? null;
+  foreach ($map as $idx=>$canonName) { $vals[$canonName] = $row[$idx] ?? null; }
 
-  // Derivar "Año de reporte" si no viene
-  if (!array_key_exists('Año de reporte', $vals) || trim((string)$vals['Año de reporte'])==='') {
-    $vals['Año de reporte'] = derive_ano_reporte($vals);
+  // ⛔ Sin derivación: si no viene "Año de reporte" en el archivo, lo dejamos NULL
+  if (!array_key_exists('Año de reporte', $vals)) {
+    $vals['Año de reporte'] = null;
   }
 
   // Normalización por tipo
@@ -318,30 +324,4 @@ while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
         break;
 
       case 'Año de reporte':
-        $yr = is_null($raw) ? null : extract_year((string)$raw);
-        $params[':'.$ph[$cname]] = $yr;
-        break;
-
-      default:
-        $val = trim((string)$raw);
-        $params[':'.$ph[$cname]] = ($val==='') ? null : $val;
-        break;
-    }
-  }
-
-  // Insert con SAVEPOINT (tolerante a errores puntuales), sin deduplicación
-  $sp = 'sp_'.$linea;
-  $pdo->exec("SAVEPOINT $sp");
-  try {
-    $insertStmt->execute($params);
-    $insertados++;
-  } catch (Throwable $e) {
-    $pdo->exec("ROLLBACK TO SAVEPOINT $sp");
-    $saltados++;
-    if (count($errores)<1000) $errores[] = "Línea $linea: ".$e->getMessage();
-  }
-}
-$pdo->commit();
-fclose($fh);
-
-echo json_encode(['ok'=>true,'insertados'=>$insertados,'saltados'=>$saltados,'errores'=>$errores], JSON_UNESCAPED_UNICODE);
+        // Solo saneamos si viene dato: tomamos un año válido; vacío =>
