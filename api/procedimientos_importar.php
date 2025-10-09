@@ -108,25 +108,23 @@ function to_utf8($s): string {
   $s = (string)($s ?? '');
   if ($s === '') return '';
   if (function_exists('mb_detect_encoding') && mb_detect_encoding($s, 'UTF-8', true)) return $s;
-  // intenta convertir desde orígenes comunes
   $encs = ['Windows-1252','ISO-8859-1','ISO-8859-15'];
   foreach ($encs as $enc) {
     $conv = @mb_convert_encoding($s, 'UTF-8', $enc);
     if ($conv !== false && $conv !== '') return $conv;
   }
-  return $s; // último recurso
+  return $s;
 }
 function u_upper(string $s): string {
   return function_exists('mb_strtoupper') ? mb_strtoupper($s,'UTF-8') : strtoupper($s);
 }
 function norm_header($s): string {
   $s = to_utf8($s);
-  // quita BOM y espacios raros
   $s = preg_replace('/^\xEF\xBB\xBF/', '', $s);
-  $s = str_replace(["\xC2\xA0","\xE2\x80\x8B","\xE2\x80\x8C","\xE2\x80\x8D"], ' ', $s); // NBSP / ZW*
+  $s = str_replace(["\xC2\xA0","\xE2\x80\x8B","\xE2\x80\x8C","\xE2\x80\x8D"], ' ', $s);
   $s = trim($s);
   $tmp = preg_replace('/\s+/u', ' ', $s);
-  if ($tmp === null) $tmp = preg_replace('/\s+/', ' ', $s); // fallback sin 'u'
+  if ($tmp === null) $tmp = preg_replace('/\s+/', ' ', $s);
   return $tmp ?? '';
 }
 function norm_key($s): string { return u_upper(norm_header((string)$s)); }
@@ -172,12 +170,11 @@ function label_key($s): string {
   $s = strip_accents($s);
   $s = u_upper($s);
   $tmp = preg_replace('/[^A-Z0-9]+/u', ' ', $s);
-  if ($tmp === null) $tmp = preg_replace('/[^A-Z0-9]+/', ' ', $s); // fallback
+  if ($tmp === null) $tmp = preg_replace('/[^A-Z0-9]+/', ' ', $s);
   $s = $tmp ?? '';
   $tmp = preg_replace('/\s+/u', ' ', trim($s));
   if ($tmp === null) $tmp = preg_replace('/\s+/', ' ', trim($s));
   $s = $tmp ?? '';
-  // quitar stopwords
   $tokens = array_values(array_filter(explode(' ', $s), function($t){
     static $stop=['DE','DEL','EL','LA','LOS','LAS','OF','THE'];
     return $t!=='' && !in_array($t,$stop,true);
@@ -290,9 +287,11 @@ $sql = 'INSERT INTO public."Procedimientos Adjudicados" ("'.$colsSql.'") VALUES 
 $stmt = $pdo->prepare($sql);
 
 /* ==============================
-   IMPORTAR (sin deduplicación)
+   IMPORTAR (desduplicación por archivo)
    ============================== */
 $insertados=0; $saltados=0; $errores=[]; $linea=1;
+$seen = []; // huellas ya vistas en ESTE upload
+
 $pdo->beginTransaction();
 
 while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
@@ -352,6 +351,18 @@ while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
         break;
     }
   }
+
+  // Huella de la fila ya normalizada para evitar dobles inserciones en el mismo upload
+  $concat = [];
+  foreach ($canon as $cname) {
+    $concat[] = (string)($params[':'.$ph[$cname]] ?? '');
+  }
+  $fp = sha1(implode('|', $concat));
+  if (isset($seen[$fp])) {
+    $saltados++;            // duplicada en este archivo
+    continue;
+  }
+  $seen[$fp] = true;
 
   // Insert con SAVEPOINT (tolerante a errores)
   $sp = 'sp_'.$linea;
