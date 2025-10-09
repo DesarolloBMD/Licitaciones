@@ -323,11 +323,12 @@ while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
         $params[':'.$ph[$cname]] = norm_bigint_text($raw);
         break;
 
+     // DESPUÉS: guardar exactamente lo que viene en el CSV/TXT
       case 'Año de reporte':
-        // Solo saneamos si viene dato: tomamos un año válido; vacío => NULL.
-        $yr = is_null($raw) ? null : extract_year((string)$raw);
-        $params[':'.$ph[$cname]] = $yr;
+       $val = trim((string)$raw);
+        $params[':'.$ph[$cname]] = ($val === '') ? null : $val;  // sin derivar ni convertir
         break;
+
 
       default:
         $val = trim((string)$raw);
