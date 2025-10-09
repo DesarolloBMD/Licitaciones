@@ -324,4 +324,31 @@ while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
         break;
 
       case 'Año de reporte':
-        // Solo saneamos si viene dato: tomamos un año válido; vacío =>
+        // Solo saneamos si viene dato: tomamos un año válido; vacío => NULL.
+        $yr = is_null($raw) ? null : extract_year((string)$raw);
+        $params[':'.$ph[$cname]] = $yr;
+        break;
+
+      default:
+        $val = trim((string)$raw);
+        $params[':'.$ph[$cname]] = ($val==='') ? null : $val;
+        break;
+    }
+  }
+
+  // Insert con SAVEPOINT (tolerante a errores)
+  $sp = 'sp_'.$linea;
+  $pdo->exec("SAVEPOINT $sp");
+  try {
+    $insertStmt->execute($params);
+    $insertados++;
+  } catch (Throwable $e) {
+    $pdo->exec("ROLLBACK TO SAVEPOINT $sp");
+    $saltados++;
+    if (count($errores)<1000) $errores[] = "Línea $linea: ".$e->getMessage();
+  }
+}
+$pdo->commit();
+fclose($fh);
+
+echo json_encode(['ok'=>true,'insertados'=>$insertados,'saltados'=>$saltados,'errores'=>$errores], JSON_UNESCAPED_UNICODE);
