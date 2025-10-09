@@ -137,28 +137,31 @@
 
     try{
       const r = await fetch(API_URL, { method:'POST', body: fd, signal: controller.signal });
+
       stopFakeProgress();
       setProgress(100);
 
-      const ct = (r.headers.get('content-type')||'').toLowerCase();
-      if(!ct.includes('application/json')){
-        const text = await r.text();
-        $('#msg').innerHTML = '⚠ La API no devolvió JSON.';
-        $('#raw').classList.remove('d-none');
-        $('#raw').innerHTML = escapeHTML(text);
-        return;
-      }
+      // ——— parseo tolerante: siempre leer como texto y luego intentar JSON
+      const raw = await r.text();
+      let j;
+      try { j = JSON.parse(raw); }
+      catch { j = { ok:false, error: raw }; }
 
-      const j = await r.json();
       if(!r.ok || !j.ok){
         $('#msg').innerHTML = '⚠ Error: ' + escapeHTML(j.error || 'desconocido');
-        if(j.detalle){ $('#res').textContent = JSON.stringify(j.detalle, null, 2); }
+        if (j.debug) {
+          $('#raw').classList.remove('d-none');
+          $('#raw').innerHTML = escapeHTML(j.debug);
+        } else if (typeof j.error === 'string' && j.error.trim().startsWith('<')) {
+          // probablemente HTML de error
+          $('#raw').classList.remove('d-none');
+          $('#raw').innerHTML = escapeHTML(j.error);
+        }
         return;
       }
 
       $('#msg').innerHTML = '✅ Importación completada';
       const errs = Array.isArray(j.errores) ? j.errores.length : (j.errores ?? 0);
-      const warns = Array.isArray(j.warnings) ? j.warnings.length : (j.warnings ?? 0);
       $('#res').innerHTML =
         `<div class="alert alert-success mt-2">
            Insertados: <strong>${j.insertados}</strong> — Saltados: <strong>${j.saltados}</strong> — Errores: <strong>${errs}</strong>
@@ -184,9 +187,7 @@
     }
   });
 
-  $('#btnCancelar').addEventListener('click', ()=>{
-    if(controller){ controller.abort(); }
-  });
+  $('#btnCancelar').addEventListener('click', ()=>{ if(controller){ controller.abort(); } });
 
   $('#btnReset').addEventListener('click', ()=>{
     $('#msg').textContent = '';
