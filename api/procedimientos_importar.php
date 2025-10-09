@@ -277,6 +277,50 @@ if ($faltan) {
   exit;
 }
 
+/* ===========================================================
+   ESCANEAR MESES/AÑOS DEL ARCHIVO PARA REEMPLAZAR EN BD
+   =========================================================== */
+$mesKeys = []; // key: "mes|año" → ['mes'=>..., 'ano'=>...]
+$posAfterHeader = ftell($fh);
+while (($rowScan = fgetcsv($fh, 0, $delimiter)) !== false) {
+  // saltar filas vacías
+  $allEmpty = true;
+  foreach ($rowScan as $c) { if (trim((string)$c) !== '') { $allEmpty=false; break; } }
+  if ($allEmpty) continue;
+  // saltar un segundo encabezado
+  $row_norm_join = implode('|', array_map('label_key', array_map('strval', $rowScan)));
+  if ($row_norm_join === $header_norm_join) continue;
+
+  $valsScan = [];
+  foreach ($map as $idx=>$canonName) { $valsScan[$canonName] = $rowScan[$idx] ?? null; }
+
+  $mes   = trim((string)($valsScan['Mes de Descarga'] ?? ''));
+  $anoRp = isset($valsScan['Año de reporte']) ? trim((string)$valsScan['Año de reporte']) : null;
+  if ($mes !== '') {
+    $mesKeys[$mes.'|'.($anoRp ?? '')] = ['mes'=>$mes, 'ano'=>$anoRp];
+  }
+}
+/* volver a la primera fila de datos */
+fseek($fh, $posAfterHeader);
+
+/* ==============================
+   PREP DELETE (reemplazo) + BEGIN
+   ============================== */
+$pdo->beginTransaction();
+if (!empty($mesKeys)) {
+  $del = $pdo->prepare(
+    'DELETE FROM public."Procedimientos Adjudicados"
+     WHERE "Mes de Descarga" = :mes
+       AND ( ( :ano IS NULL AND "Año de reporte" IS NULL ) OR "Año de reporte" = :ano )'
+  );
+  foreach ($mesKeys as $pair) {
+    $del->execute([
+      ':mes' => $pair['mes'],
+      ':ano' => ($pair['ano'] === '' ? null : $pair['ano']),
+    ]);
+  }
+}
+
 /* ==============================
    PREP INSERT (con fingerprint + ON CONFLICT)
    ============================== */
@@ -292,8 +336,6 @@ $stmt = $pdo->prepare($sql);
    ============================== */
 $insertados=0; $saltados=0; $errores=[]; $linea=1;
 $seen = []; // huellas vistas en ESTE upload
-
-$pdo->beginTransaction();
 
 while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
   $linea++;
