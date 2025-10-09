@@ -49,11 +49,29 @@
             Encabezado exacto (ejemplo): <code>Mes de Descarga, CEDULA, INSTITUCION, ANO, ...</code>. Fechas <code>dd/mm/yyyy</code>.
           </div>
         </div>
+
         <div class="col-12 col-lg-4">
           <label class="form-label">Opciones</label>
           <div class="form-check">
             <input class="form-check-input" type="checkbox" id="tieneHeader" checked>
             <label class="form-check-label" for="tieneHeader">Primera fila contiene encabezados</label>
+          </div>
+
+          <div class="mt-3">
+            <label class="form-label d-block mb-1">Modo de importación</label>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="modo" id="modoAppend" value="append" checked>
+              <label class="form-check-label" for="modoAppend">Agregar (evita duplicados)</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="modo" id="modoReplace" value="replace">
+              <label class="form-check-label" for="modoReplace">Reemplazar mes (borra lo existente)</label>
+            </div>
+            <div class="form-text small-muted">
+              Si eliges <strong>Reemplazar</strong>, se eliminarán los registros que coincidan con el
+              <em>Mes de Descarga</em> y <em>Año de reporte</em> del archivo antes de insertar.
+              Úsalo cuando subas un mes completo corregido.
+            </div>
           </div>
         </div>
       </div>
@@ -89,7 +107,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-  const API_URL = 'api/procedimientos_importar.php'; // ruta relativa (carpeta "api")
+  const API_URL = 'api/procedimientos_importar.php';
   const $ = (s,d=document)=>d.querySelector(s);
 
   let controller = null;
@@ -127,6 +145,10 @@
     fd.append('archivo', file);
     fd.append('tiene_header', $('#tieneHeader').checked ? '1' : '0');
 
+    // ⬇️ MODO: enviar siempre (append | replace)
+    const modo = document.querySelector('input[name="modo"]:checked')?.value || 'append';
+    fd.append('modo', modo);
+
     controller = new AbortController();
     $('#btnEnviar').disabled = true;
     $('#btnCancelar').disabled = false;
@@ -137,11 +159,10 @@
 
     try{
       const r = await fetch(API_URL, { method:'POST', body: fd, signal: controller.signal });
-
       stopFakeProgress();
       setProgress(100);
 
-      // ——— parseo tolerante: siempre leer como texto y luego intentar JSON
+      // ——— parseo tolerante
       const raw = await r.text();
       let j;
       try { j = JSON.parse(raw); }
@@ -153,7 +174,6 @@
           $('#raw').classList.remove('d-none');
           $('#raw').innerHTML = escapeHTML(j.debug);
         } else if (typeof j.error === 'string' && j.error.trim().startsWith('<')) {
-          // probablemente HTML de error
           $('#raw').classList.remove('d-none');
           $('#raw').innerHTML = escapeHTML(j.error);
         }
@@ -164,6 +184,7 @@
       const errs = Array.isArray(j.errores) ? j.errores.length : (j.errores ?? 0);
       $('#res').innerHTML =
         `<div class="alert alert-success mt-2">
+           Modo: <strong>${modo}</strong><br>
            Insertados: <strong>${j.insertados}</strong> — Saltados: <strong>${j.saltados}</strong> — Errores: <strong>${errs}</strong>
          </div>` +
         (Array.isArray(j.errores) && j.errores.length
