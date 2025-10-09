@@ -80,13 +80,29 @@ ${errList ? '\nErrores (primeros 20):\n'+errList : ''}`;
 <?php exit; }
 
 /* ===========================
-   CORS / HEADERS
+   CORS / HEADERS (POST)
    =========================== */
 if ($method === 'OPTIONS') { http_response_code(204); exit; }
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
+
+/* JSON-safe error handling: siempre devolvemos JSON aunque haya un fatal */
+ob_start();
+set_error_handler(function($severity,$message,$file,$line){
+  throw new ErrorException($message,0,$severity,$file,$line);
+});
+register_shutdown_function(function(){
+  $err = error_get_last();
+  if ($err && in_array($err['type'],[E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR])) {
+    http_response_code(500);
+    header('Content-Type: application/json; charset=utf-8', true);
+    $payload=['ok'=>false,'error'=>'Fallo fatal: '.$err['message'].' @ '.$err['file'].':'.$err['line']];
+    $out = ob_get_clean(); if ($out) $payload['debug']=trim(strip_tags($out));
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+  }
+});
 
 if ($method !== 'POST') { http_response_code(405); echo json_encode(['ok'=>false,'error'=>'Método no permitido (usa POST)'], JSON_UNESCAPED_UNICODE); exit; }
 if (!isset($_FILES['archivo']) || $_FILES['archivo']['error'] !== UPLOAD_ERR_OK) {
@@ -130,15 +146,16 @@ try {
 /* ===========================
    HELPERS (normalización de datos)
    =========================== */
+function u_upper(string $s): string {
+  return function_exists('mb_strtoupper') ? mb_strtoupper($s,'UTF-8') : strtoupper($s);
+}
 function norm_header(string $s): string { $s=preg_replace('/^\xEF\xBB\xBF/','',$s); $s=trim($s); return preg_replace('/\s+/', ' ', $s); }
-function norm_key(string $s): string { return mb_strtoupper(norm_header($s), 'UTF-8'); }
+function norm_key(string $s): string { return u_upper(norm_header($s)); }
 
 function clean_label(string $s): string {
   $s = preg_replace('/^\xEF\xBB\xBF/', '', $s); // BOM
-  // NBSP y zero-width
-  $s = str_replace(["\xC2\xA0","\xE2\x80\x8B","\xE2\x80\x8C","\xE2\x80\x8D"], ' ', $s);
-  // comillas “ ” ' "
-  $s = str_replace(['“','”','"',"'"], '', $s);
+  $s = str_replace(["\xC2\xA0","\xE2\x80\x8B","\xE2\x80\x8C","\xE2\x80\x8D"], ' ', $s); // NBSP/ZWS
+  $s = str_replace(['“','”','"',"'"], '', $s); // comillas
   return preg_replace('/\s+/u', ' ', trim($s));
 }
 function strip_accents(string $s): string {
@@ -148,11 +165,16 @@ function strip_accents(string $s): string {
 }
 function label_key(string $s): string {
   $s = clean_label($s);
-  $s = mb_strtoupper($s, 'UTF-8');
+  $s = u_upper($s);
   $s = strip_accents($s);
   $s = preg_replace('/[^A-Z0-9]+/u', ' ', $s);
   $s = preg_replace('/\s+/u', ' ', trim($s));
-  return $s; // p.ej. "ANO DE REPORTE"
+  // quitar stopwords: "DE, DEL, EL, LA, LOS, LAS, OF, THE"
+  $tokens = array_values(array_filter(explode(' ', $s), function($t){
+    static $stop=['DE','DEL','EL','LA','LOS','LAS','OF','THE'];
+    return $t!=='' && !in_array($t,$stop,true);
+  }));
+  return implode(' ', $tokens); // p.ej. "ANO REPORTE"
 }
 
 function norm_date(?string $s): ?string {
@@ -201,13 +223,15 @@ $canon = [
 ];
 $optional = ['Año de reporte' => true];
 
-/* Variantes (opcional: ya no son estrictamente necesarias con label_key) */
+/* Sinónimos (ya no estrictamente necesarios con label_key, pero suman) */
 $syn = [
   'MES DE DESCARGA'  => 'Mes de Descarga',
   'AÑO DE REPORTE'   => 'Año de reporte',
   'ANIO DE REPORTE'  => 'Año de reporte',
   'AÑO REPORTE'      => 'Año de reporte',
   'ANIO REPORTE'     => 'Año de reporte',
+  'AÑO DEL REPORTE'  => 'Año de reporte',
+  'ANIO DEL REPORTE' => 'Año de reporte',
   'YEAR OF REPORT'   => 'Año de reporte',
   'YEAR REPORT'      => 'Año de reporte',
   'YEAR_REPORT'      => 'Año de reporte',
@@ -336,7 +360,7 @@ while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
         $params[':'.$ph[$cname]] = norm_bigint_text($raw);
         break;
 
-      case 'Año de reporte': // guardar exactamente lo que viene
+      case 'Año de reporte': // guardar exactamente lo que viene (texto)
         $val = trim((string)$raw);
         $params[':'.$ph[$cname]] = ($val === '') ? null : $val;
         break;
@@ -363,4 +387,9 @@ while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
 $pdo->commit();
 fclose($fh);
 
-echo json_encode(['ok'=>true,'insertados'=>$insertados,'saltados'=>$saltados,'errores'=>$errores], JSON_UNESCAPED_UNICODE);
+/* Respuesta JSON (incluye cualquier 'debug' que haya quedado en el buffer) */
+$debug = ob_get_contents();
+ob_end_clean();
+$resp = ['ok'=>true,'insertados'=>$insertados,'saltados'=>$saltados,'errores'=>$errores];
+if ($debug) $resp['debug'] = trim(strip_tags($debug));
+echo json_encode($resp, JSON_UNESCAPED_UNICODE);
