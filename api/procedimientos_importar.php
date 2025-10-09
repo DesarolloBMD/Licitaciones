@@ -80,29 +80,13 @@ ${errList ? '\nErrores (primeros 20):\n'+errList : ''}`;
 <?php exit; }
 
 /* ===========================
-   CORS / HEADERS (POST)
+   CORS / HEADERS
    =========================== */
 if ($method === 'OPTIONS') { http_response_code(204); exit; }
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
-
-/* JSON-safe error handling: siempre devolvemos JSON aunque haya un fatal */
-ob_start();
-set_error_handler(function($severity,$message,$file,$line){
-  throw new ErrorException($message,0,$severity,$file,$line);
-});
-register_shutdown_function(function(){
-  $err = error_get_last();
-  if ($err && in_array($err['type'],[E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR])) {
-    http_response_code(500);
-    header('Content-Type: application/json; charset=utf-8', true);
-    $payload=['ok'=>false,'error'=>'Fallo fatal: '.$err['message'].' @ '.$err['file'].':'.$err['line']];
-    $out = ob_get_clean(); if ($out) $payload['debug']=trim(strip_tags($out));
-    echo json_encode($payload, JSON_UNESCAPED_UNICODE);
-  }
-});
 
 if ($method !== 'POST') { http_response_code(405); echo json_encode(['ok'=>false,'error'=>'Método no permitido (usa POST)'], JSON_UNESCAPED_UNICODE); exit; }
 if (!isset($_FILES['archivo']) || $_FILES['archivo']['error'] !== UPLOAD_ERR_OK) {
@@ -144,42 +128,18 @@ try {
 }
 
 /* ===========================
-   HELPERS (normalización de datos)
+   HELPERS
    =========================== */
 function u_upper(string $s): string {
   return function_exists('mb_strtoupper') ? mb_strtoupper($s,'UTF-8') : strtoupper($s);
 }
-function norm_header(string $s): string { $s=preg_replace('/^\xEF\xBB\xBF/','',$s); $s=trim($s); return preg_replace('/\s+/', ' ', $s); }
+function norm_header(string $s): string {
+  $s = preg_replace('/^\xEF\xBB\xBF/','',$s);
+  $s = str_replace(["\xC2\xA0","\xE2\x80\x8B","\xE2\x80\x8C","\xE2\x80\x8D"], ' ', $s); // NBSP/ZW*
+  $s = trim($s);
+  return preg_replace('/\s+/u', ' ', $s);
+}
 function norm_key(string $s): string { return u_upper(norm_header($s)); }
-
-/* —— NULL-safe helpers para encabezados —— */
-function clean_label($s): string {
-  $s = (string)($s ?? '');
-  $s = preg_replace('/^\xEF\xBB\xBF/', '', $s); // BOM
-  $s = str_replace(["\xC2\xA0","\xE2\x80\x8B","\xE2\x80\x8C","\xE2\x80\x8D"], ' ', $s); // NBSP/ZWS
-  $s = str_replace(['“','”','"',"'"], '', $s); // comillas
-  return preg_replace('/\s+/u', ' ', trim($s));
-}
-function strip_accents($s): string {
-  $s = (string)($s ?? '');
-  $from = 'ÁáÉéÍíÓóÚúÜüÑñ';
-  $to   = 'AaEeIiOoUuUuNn';
-  return strtr($s, $from, $to);
-}
-function label_key($s): string {
-  $s = (string)($s ?? '');
-  $s = clean_label($s);
-  $s = u_upper($s);
-  $s = strip_accents($s);
-  $s = preg_replace('/[^A-Z0-9]+/u', ' ', $s);
-  $s = preg_replace('/\s+/u', ' ', trim($s));
-  // quitar stopwords: "DE, DEL, EL, LA, LOS, LAS, OF, THE"
-  $tokens = array_values(array_filter(explode(' ', $s), function($t){
-    static $stop=['DE','DEL','EL','LA','LOS','LAS','OF','THE'];
-    return $t!=='' && !in_array($t,$stop,true);
-  }));
-  return implode(' ', $tokens); // ej. "ANO REPORTE"
-}
 
 function norm_date(?string $s): ?string {
   $s = trim((string)$s); if ($s==='' || strtoupper($s)==='NULL') return null;
@@ -227,7 +187,6 @@ $canon = [
 ];
 $optional = ['Año de reporte' => true];
 
-/* Sinónimos (no estrictamente necesarios con label_key, pero suman) */
 $syn = [
   'MES DE DESCARGA'  => 'Mes de Descarga',
   'AÑO DE REPORTE'   => 'Año de reporte',
@@ -241,7 +200,6 @@ $syn = [
   'YEAR_REPORT'      => 'Año de reporte',
 ];
 
-/* Placeholders */
 $ph = [
   'Mes de Descarga'=>'c_mes_descarga',
   'Año de reporte'=>'c_ano_reporte',
@@ -261,7 +219,18 @@ $ph = [
   'PROD_ID_CL'=>'c_prod_id_cl'
 ];
 
-/* Diccionario canónico por clave normalizada */
+/* —— Diccionario canónico por clave normalizada (tolerante a NBSP/acentos) —— */
+function label_key(string $s): string {
+  $s = norm_header($s);                // limpia BOM/NBSP/espacios
+  $s = strtr($s, ['Á'=>'A','É'=>'E','Í'=>'I','Ó'=>'O','Ú'=>'U','Ü'=>'U','Ñ'=>'N',
+                  'á'=>'A','é'=>'E','í'=>'I','ó'=>'O','ú'=>'U','ü'=>'U','ñ'=>'N']);
+  $s = preg_replace('/[^A-Za-z0-9 ]+/u',' ', $s);
+  $s = preg_replace('/\s+/u',' ', trim($s));
+  $s = u_upper($s);
+  // quitamos stopwords comunes
+  $tokens = array_values(array_filter(explode(' ', $s), fn($t)=>!in_array($t, ['DE','DEL','EL','LA','LOS','LAS','OF','THE'], true)));
+  return implode(' ', $tokens); // ej: "ANO REPORTE"
+}
 $canonByKey = [];
 foreach ($canon as $c) { $canonByKey[label_key($c)] = $c; }
 foreach ($syn as $k => $target) { $canonByKey[label_key($k)] = $target; }
@@ -281,27 +250,24 @@ $cands = [","=>substr_count($firstLineRaw,","), ";"=>substr_count($firstLineRaw,
 arsort($cands); $delimiter = array_key_first($cands) ?? ",";
 if (($cands[$delimiter] ?? 0) === 0) $delimiter = ",";
 
-/* Leer encabezados con fgetcsv y validarlos */
+/* Leer encabezados con fgetcsv */
 $header = fgetcsv($fh, 0, $delimiter);
 if ($header === false || $header === null) {
-  fclose($fh);
-  http_response_code(400);
-  echo json_encode(['ok'=>false,'error'=>'No se pudo leer la fila de encabezados'], JSON_UNESCAPED_UNICODE);
-  exit;
+  fclose($fh); http_response_code(400);
+  echo json_encode(['ok'=>false,'error'=>'No se pudo leer la fila de encabezados'], JSON_UNESCAPED_UNICODE); exit;
 }
-$header = array_map('clean_label', (array)$header);
+$header = array_map('norm_header', $header);
 /* Para detectar encabezados repetidos en medio del archivo */
 $header_norm_join = implode('|', array_map('label_key', $header));
 
 /* Mapear encabezados robusto */
 $map = []; $canon_set = array_fill_keys($canon, false); $en_archivo=[];
 for ($i=0; $i<count($header); $i++) {
-  $h = $header[$i];
-  if ($h === '' || $h === null) continue;
+  $h = $header[$i]; if ($h==='') continue;
   $key = label_key($h);
   $hCanon = $canonByKey[$key] ?? null;
   if ($hCanon !== null) { $map[$i]=$hCanon; $canon_set[$hCanon]=true; }
-  $en_archivo[] = (string)($h ?? '');
+  $en_archivo[]=$h;
 }
 $faltan = [];
 foreach ($canon_set as $c=>$ok) { if (!$ok && empty($optional[$c])) $faltan[]=$c; }
@@ -341,7 +307,7 @@ while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
   $vals = [];
   foreach ($map as $idx=>$canonName) { $vals[$canonName] = $row[$idx] ?? null; }
 
-  // Sin derivación: si NO viene "Año de reporte" en el archivo, queda NULL
+  // si NO viene "Año de reporte" en el archivo, lo dejamos NULL (sin derivar)
   if (!array_key_exists('Año de reporte', $vals)) {
     $vals['Año de reporte'] = null;
   }
@@ -371,7 +337,7 @@ while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
         $params[':'.$ph[$cname]] = norm_bigint_text($raw);
         break;
 
-      case 'Año de reporte': // guardar exactamente lo que viene (texto)
+      case 'Año de reporte': // guardar exactamente lo que viene
         $val = trim((string)$raw);
         $params[':'.$ph[$cname]] = ($val === '') ? null : $val;
         break;
@@ -398,9 +364,4 @@ while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
 $pdo->commit();
 fclose($fh);
 
-/* Respuesta JSON (incluye cualquier 'debug' que haya quedado en el buffer) */
-$debug = ob_get_contents();
-ob_end_clean();
-$resp = ['ok'=>true,'insertados'=>$insertados,'saltados'=>$saltados,'errores'=>$errores];
-if ($debug) $resp['debug'] = trim(strip_tags($debug));
-echo json_encode($resp, JSON_UNESCAPED_UNICODE);
+echo json_encode(['ok'=>true,'insertados'=>$insertados,'saltados'=>$saltados,'errores'=>$errores], JSON_UNESCAPED_UNICODE);
