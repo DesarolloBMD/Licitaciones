@@ -128,10 +128,32 @@ try {
 }
 
 /* ===========================
-   HELPERS
+   HELPERS (normalización de datos)
    =========================== */
 function norm_header(string $s): string { $s=preg_replace('/^\xEF\xBB\xBF/','',$s); $s=trim($s); return preg_replace('/\s+/', ' ', $s); }
 function norm_key(string $s): string { return mb_strtoupper(norm_header($s), 'UTF-8'); }
+
+function clean_label(string $s): string {
+  $s = preg_replace('/^\xEF\xBB\xBF/', '', $s); // BOM
+  // NBSP y zero-width
+  $s = str_replace(["\xC2\xA0","\xE2\x80\x8B","\xE2\x80\x8C","\xE2\x80\x8D"], ' ', $s);
+  // comillas “ ” ' "
+  $s = str_replace(['“','”','"',"'"], '', $s);
+  return preg_replace('/\s+/u', ' ', trim($s));
+}
+function strip_accents(string $s): string {
+  $from = 'ÁáÉéÍíÓóÚúÜüÑñ';
+  $to   = 'AaEeIiOoUuUuNn';
+  return strtr($s, $from, $to);
+}
+function label_key(string $s): string {
+  $s = clean_label($s);
+  $s = mb_strtoupper($s, 'UTF-8');
+  $s = strip_accents($s);
+  $s = preg_replace('/[^A-Z0-9]+/u', ' ', $s);
+  $s = preg_replace('/\s+/u', ' ', trim($s));
+  return $s; // p.ej. "ANO DE REPORTE"
+}
 
 function norm_date(?string $s): ?string {
   $s = trim((string)$s); if ($s==='' || strtoupper($s)==='NULL') return null;
@@ -161,12 +183,6 @@ function norm_bigint_text(?string $s): ?string {
   }
   $digits = preg_replace('/\D+/', '', $s); return $digits === '' ? null : $digits;
 }
-function extract_year(?string $s): ?int {
-  $s = trim((string)$s); if ($s==='') return null;
-  if (preg_match('/\b(19|20)\d{2}\b/u', $s, $m)) { $y=(int)$m[0]; if ($y>=1900 && $y<=2100) return $y; }
-  if (ctype_digit($s) && strlen($s)===4) { $y=(int)$s; if ($y>=1900 && $y<=2100) return $y; }
-  return null;
-}
 
 /* ===========================
    DEFINICIÓN DE COLUMNAS
@@ -185,27 +201,19 @@ $canon = [
 ];
 $optional = ['Año de reporte' => true];
 
-/* Variantes de encabezado para mapear exactamente "Año de reporte" */
+/* Variantes (opcional: ya no son estrictamente necesarias con label_key) */
 $syn = [
   'MES DE DESCARGA'  => 'Mes de Descarga',
-
   'AÑO DE REPORTE'   => 'Año de reporte',
   'ANIO DE REPORTE'  => 'Año de reporte',
   'AÑO REPORTE'      => 'Año de reporte',
   'ANIO REPORTE'     => 'Año de reporte',
-  'AÑO_DEL_REPORTE'  => 'Año de reporte',
-  'ANIO_DEL_REPORTE' => 'Año de reporte',
-  'AÑO-REPORTE'      => 'Año de reporte',
-  'ANIO-REPORTE'     => 'Año de reporte',
-  'AÑOREPORTE'       => 'Año de reporte',
-  'ANIOREPORTE'      => 'Año de reporte',
-  'AÑOREP'           => 'Año de reporte',
   'YEAR OF REPORT'   => 'Año de reporte',
   'YEAR REPORT'      => 'Año de reporte',
   'YEAR_REPORT'      => 'Año de reporte',
-  'YEAR'             => 'Año de reporte'  // si así lo mandan explícitamente
 ];
 
+/* Placeholders */
 $ph = [
   'Mes de Descarga'=>'c_mes_descarga',
   'Año de reporte'=>'c_ano_reporte',
@@ -225,6 +233,11 @@ $ph = [
   'PROD_ID_CL'=>'c_prod_id_cl'
 ];
 
+/* Diccionario canónico por clave normalizada */
+$canonByKey = [];
+foreach ($canon as $c) { $canonByKey[label_key($c)] = $c; }
+foreach ($syn as $k => $target) { $canonByKey[label_key($k)] = $target; }
+
 /* ===========================
    ABRIR ARCHIVO + DELIMITADOR
    =========================== */
@@ -242,16 +255,16 @@ if (($cands[$delimiter] ?? 0) === 0) $delimiter = ",";
 
 /* Leer encabezados con fgetcsv */
 $header = fgetcsv($fh, 0, $delimiter);
-$header = array_map('norm_header', $header);
-$header_norm_join = implode('|', array_map('norm_key', $header));
+$header = array_map('clean_label', $header);
+/* Para detectar encabezados repetidos en medio del archivo */
+$header_norm_join = implode('|', array_map('label_key', $header));
 
-/* Mapear encabezados */
+/* Mapear encabezados robusto */
 $map = []; $canon_set = array_fill_keys($canon, false); $en_archivo=[];
 for ($i=0; $i<count($header); $i++) {
   $h = $header[$i]; if ($h==='') continue;
-  $hk = norm_key($h);
-  $hCanon = $syn[$hk] ?? null;
-  if ($hCanon === null) { foreach ($canon as $c) { if (norm_key($c)===$hk) { $hCanon = $c; break; } } }
+  $key = label_key($h);
+  $hCanon = $canonByKey[$key] ?? null;
   if ($hCanon !== null) { $map[$i]=$hCanon; $canon_set[$hCanon]=true; }
   $en_archivo[]=$h;
 }
@@ -286,14 +299,14 @@ while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
   if ($allEmpty) continue;
 
   // Saltar encabezados repetidos dentro del archivo
-  $row_norm_join = implode('|', array_map('norm_key', array_map('strval', $row)));
+  $row_norm_join = implode('|', array_map('label_key', array_map('strval', $row)));
   if ($row_norm_join === $header_norm_join) continue;
 
   // valores brutos por columna canónica
   $vals = [];
   foreach ($map as $idx=>$canonName) { $vals[$canonName] = $row[$idx] ?? null; }
 
-  // ⛔ Sin derivación: si no viene "Año de reporte" en el archivo, lo dejamos NULL
+  // Sin derivación: si NO viene "Año de reporte" en el archivo, queda NULL
   if (!array_key_exists('Año de reporte', $vals)) {
     $vals['Año de reporte'] = null;
   }
@@ -323,12 +336,10 @@ while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
         $params[':'.$ph[$cname]] = norm_bigint_text($raw);
         break;
 
-     // DESPUÉS: guardar exactamente lo que viene en el CSV/TXT
-      case 'Año de reporte':
-       $val = trim((string)$raw);
-        $params[':'.$ph[$cname]] = ($val === '') ? null : $val;  // sin derivar ni convertir
+      case 'Año de reporte': // guardar exactamente lo que viene
+        $val = trim((string)$raw);
+        $params[':'.$ph[$cname]] = ($val === '') ? null : $val;
         break;
-
 
       default:
         $val = trim((string)$raw);
