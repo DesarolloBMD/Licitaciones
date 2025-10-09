@@ -433,3 +433,4 @@ echo json_encode([
   'warnings'   => [],
   'debug'      => $debug ? trim(strip_tags($debug)) : null,
 ], JSON_UNESCAPED_UNICODE);
+
