@@ -152,18 +152,22 @@ function u_upper(string $s): string {
 function norm_header(string $s): string { $s=preg_replace('/^\xEF\xBB\xBF/','',$s); $s=trim($s); return preg_replace('/\s+/', ' ', $s); }
 function norm_key(string $s): string { return u_upper(norm_header($s)); }
 
-function clean_label(string $s): string {
+/* —— NULL-safe helpers para encabezados —— */
+function clean_label($s): string {
+  $s = (string)($s ?? '');
   $s = preg_replace('/^\xEF\xBB\xBF/', '', $s); // BOM
   $s = str_replace(["\xC2\xA0","\xE2\x80\x8B","\xE2\x80\x8C","\xE2\x80\x8D"], ' ', $s); // NBSP/ZWS
   $s = str_replace(['“','”','"',"'"], '', $s); // comillas
   return preg_replace('/\s+/u', ' ', trim($s));
 }
-function strip_accents(string $s): string {
+function strip_accents($s): string {
+  $s = (string)($s ?? '');
   $from = 'ÁáÉéÍíÓóÚúÜüÑñ';
   $to   = 'AaEeIiOoUuUuNn';
   return strtr($s, $from, $to);
 }
-function label_key(string $s): string {
+function label_key($s): string {
+  $s = (string)($s ?? '');
   $s = clean_label($s);
   $s = u_upper($s);
   $s = strip_accents($s);
@@ -174,7 +178,7 @@ function label_key(string $s): string {
     static $stop=['DE','DEL','EL','LA','LOS','LAS','OF','THE'];
     return $t!=='' && !in_array($t,$stop,true);
   }));
-  return implode(' ', $tokens); // p.ej. "ANO REPORTE"
+  return implode(' ', $tokens); // ej. "ANO REPORTE"
 }
 
 function norm_date(?string $s): ?string {
@@ -223,7 +227,7 @@ $canon = [
 ];
 $optional = ['Año de reporte' => true];
 
-/* Sinónimos (ya no estrictamente necesarios con label_key, pero suman) */
+/* Sinónimos (no estrictamente necesarios con label_key, pero suman) */
 $syn = [
   'MES DE DESCARGA'  => 'Mes de Descarga',
   'AÑO DE REPORTE'   => 'Año de reporte',
@@ -277,20 +281,27 @@ $cands = [","=>substr_count($firstLineRaw,","), ";"=>substr_count($firstLineRaw,
 arsort($cands); $delimiter = array_key_first($cands) ?? ",";
 if (($cands[$delimiter] ?? 0) === 0) $delimiter = ",";
 
-/* Leer encabezados con fgetcsv */
+/* Leer encabezados con fgetcsv y validarlos */
 $header = fgetcsv($fh, 0, $delimiter);
-$header = array_map('clean_label', $header);
+if ($header === false || $header === null) {
+  fclose($fh);
+  http_response_code(400);
+  echo json_encode(['ok'=>false,'error'=>'No se pudo leer la fila de encabezados'], JSON_UNESCAPED_UNICODE);
+  exit;
+}
+$header = array_map('clean_label', (array)$header);
 /* Para detectar encabezados repetidos en medio del archivo */
 $header_norm_join = implode('|', array_map('label_key', $header));
 
 /* Mapear encabezados robusto */
 $map = []; $canon_set = array_fill_keys($canon, false); $en_archivo=[];
 for ($i=0; $i<count($header); $i++) {
-  $h = $header[$i]; if ($h==='') continue;
+  $h = $header[$i];
+  if ($h === '' || $h === null) continue;
   $key = label_key($h);
   $hCanon = $canonByKey[$key] ?? null;
   if ($hCanon !== null) { $map[$i]=$hCanon; $canon_set[$hCanon]=true; }
-  $en_archivo[]=$h;
+  $en_archivo[] = (string)($h ?? '');
 }
 $faltan = [];
 foreach ($canon_set as $c=>$ok) { if (!$ok && empty($optional[$c])) $faltan[]=$c; }
