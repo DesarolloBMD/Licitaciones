@@ -38,14 +38,17 @@
   <div class="glass p-3 p-lg-4">
     <form id="frm" class="vstack gap-3" enctype="multipart/form-data">
       <div class="row g-3">
-        <div class="col-12 col-lg-8">
-          <label class="form-label">Archivo (.csv, .tsv o .txt) con encabezados</label>
-          <input class="form-control" type="file" name="archivo" id="archivo" accept=".csv,.tsv,.txt" required />
-          <div class="form-text small-muted">
-            Separador soportado: <code>,</code>, <code>;</code> o <code>(tab)</code> (auto-detectado).
-            Encabezado exacto (ejemplo): <code>Mes de Descarga, CEDULA, INSTITUCION, ANO, ...</code>. Fechas <code>dd/mm/yyyy</code>.
-          </div>
-        </div>
+
+    <div class="col-12 col-lg-8">
+       <label class="form-label">
+         Bienvenido al importador de procedimientos de adjudicación del Departamento de Licitaciones
+       </label>
+         <input class="form-control" type="file" name="archivo" id="archivo" accept=".csv,.txt" required />
+        <div class="form-text small-muted">
+          Por favor, cargue un archivo con extensión <code>.csv</code> o <code>.txt</code>.
+       </div>
+    </div>
+
         <div class="col-12 col-lg-4">
           <label class="form-label">Opciones</label>
           <div class="form-check">
