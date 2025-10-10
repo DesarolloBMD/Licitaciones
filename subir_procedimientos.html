@@ -65,9 +65,6 @@
         <button class="btn btn-outline-secondary" type="reset" id="btnReset">
           <i class="bi bi-eraser me-1"></i> Limpiar
         </button>
-        <button class="btn btn-outline-warning ms-auto" type="button" id="btnAnular">
-          <i class="bi bi-arrow-counterclockwise me-1"></i> Anular importación anterior
-        </button>
       </div>
 
       <div class="row g-3 align-items-center">
@@ -93,8 +90,12 @@
     <div class="d-flex align-items-center justify-content-between">
       <h2 class="h6 m-0">Historial de importaciones</h2>
       <div class="d-flex gap-2">
-        <button class="btn btn-sm btn-outline-secondary" id="btnRefrescar"><i class="bi bi-arrow-clockwise me-1"></i>Actualizar</button>
-        <button class="btn btn-sm btn-outline-danger" id="btnAnularUltimo"><i class="bi bi-arrow-counterclockwise me-1"></i>Anular último</button>
+        <button class="btn btn-sm btn-outline-secondary" id="btnRefrescar">
+          <i class="bi bi-arrow-clockwise me-1"></i>Actualizar
+        </button>
+        <button class="btn btn-sm btn-outline-danger" id="btnAnularUltimo">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>Anular último
+        </button>
       </div>
     </div>
     <div class="table-responsive mt-3">
@@ -158,7 +159,6 @@
     const btn = e.target.closest('[data-anular]'); if(btn){ e.preventDefault(); anular(btn.getAttribute('data-anular')); }
   });
   $('#btnAnularUltimo').addEventListener('click', ()=>anular());
-  $('#btnAnular').addEventListener('click', ()=>anular());
   $('#btnRefrescar').addEventListener('click', fetchHistorial);
 
   $('#frm').addEventListener('submit', async (e)=>{
@@ -168,7 +168,7 @@
 
     const fd = new FormData();
     fd.append('archivo', file);
-    fd.append('tiene_header', $('#tieneHeader').checked ? '1' : '0'); // (solo para compatibilidad; el backend no lo usa)
+    fd.append('tiene_header', $('#tieneHeader').checked ? '1' : '0');
 
     controller = new AbortController();
     $('#btnEnviar').disabled=true; $('#btnCancelar').disabled=false;
