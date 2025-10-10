@@ -4,41 +4,53 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Gestión de Licitaciones — Subir procedimientos</title>
-
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/>
   <style>
     :root{ --acento:#0B4912; --acento-2:#126a1a; }
     body{ background:#0b0f24; color:#0e1b2a; }
     .hero{ background:linear-gradient(180deg,#0b0f24 0%, #0e132c 100%); color:#eaf2ff; padding:48px 0 56px; }
-    .glass{ background:#fff; border:1px solid rgba(0,0,0,.06); border-radius:18px; box-shadow:0 10px 30px rgba(0,0,0,.08); }
+    .glass{ position:relative; background:#fff; border:1px solid rgba(0,0,0,.06); border-radius:18px; box-shadow:0 10px 30px rgba(0,0,0,.08); }
     .btn-acento{ background:var(--acento); color:#fff; border:none; }
     .btn-acento:hover{ filter:brightness(1.05); color:#fff; }
     .small-muted{ color:#6b7b91; font-size:.9rem; }
     code{ background:#f3f6fa; padding:.15rem .35rem; border-radius:.35rem; }
     .progress{ height:8px; }
     pre.mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; white-space:pre-wrap; }
+    /* historial en esquina */
+    #historialBox{ position:absolute; top:-10px; right:-10px; width:320px; max-height:360px; overflow:auto;
+      background:#ffffff; border:1px solid rgba(0,0,0,.08); border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.10); }
+    #historialBox .hdr{ padding:.5rem .75rem; border-bottom:1px solid rgba(0,0,0,.06); display:flex; align-items:center; justify-content:space-between; }
+    #historialBox .itm{ padding:.5rem .75rem; border-top:1px dashed rgba(0,0,0,.06); }
+    #historialBox .itm small{ color:#6b7b91; }
   </style>
 </head>
 <body>
 
 <header class="hero">
-  <div class="container">
-    <div class="d-flex align-items-center gap-3">
-      <span class="d-inline-flex align-items-center justify-content-center bg-success rounded-3"
-            style="width:48px;height:48px;box-shadow:0 8px 24px rgba(16,185,129,.25)">
-        <i class="bi bi-upload text-white fs-4"></i>
-      </span>
-      <div>
-        <h1 class="h4 m-0">Importar “Procedimientos Adjudicados”</h1>
-        <div class="text-white-50 small">Sube un archivo .csv, .tsv o .txt con encabezados</div>
-      </div>
+  <div class="container d-flex align-items-center gap-3">
+    <span class="d-inline-flex align-items-center justify-content-center bg-success rounded-3"
+          style="width:48px;height:48px;box-shadow:0 8px 24px rgba(16,185,129,.25)">
+      <i class="bi bi-upload text-white fs-4"></i>
+    </span>
+    <div>
+      <h1 class="h4 m-0">Importar “Procedimientos Adjudicados”</h1>
+      <div class="text-white-50 small">Sube un archivo .csv, .tsv o .txt con encabezados</div>
     </div>
   </div>
 </header>
 
 <main class="container" style="margin-top:-36px;margin-bottom:64px;">
   <div class="glass p-3 p-lg-4">
+    <!-- Historial (esquinero) -->
+    <aside id="historialBox" class="d-none">
+      <div class="hdr">
+        <strong class="small">Historial</strong>
+        <button id="btnAnularUltimo" class="btn btn-sm btn-outline-danger"><i class="bi bi-arrow-counterclockwise me-1"></i>Anular último</button>
+      </div>
+      <div id="histList"></div>
+    </aside>
+
     <form id="frm" class="vstack gap-3" enctype="multipart/form-data">
       <div class="row g-3">
         <div class="col-12 col-lg-8">
@@ -49,7 +61,6 @@
             Encabezado exacto (ejemplo): <code>Mes de Descarga, CEDULA, INSTITUCION, ANO, ...</code>. Fechas <code>dd/mm/yyyy</code>.
           </div>
         </div>
-
         <div class="col-12 col-lg-4">
           <label class="form-label">Opciones</label>
           <div class="form-check">
@@ -57,20 +68,15 @@
             <label class="form-check-label" for="tieneHeader">Primera fila contiene encabezados</label>
           </div>
 
-          <div class="mt-3">
-            <label class="form-label d-block mb-1">Modo de importación</label>
+          <div class="mt-2">
+            <label class="form-label small">Modo de importación</label>
             <div class="form-check">
-              <input class="form-check-input" type="radio" name="modo" id="modoAppend" value="append" checked>
-              <label class="form-check-label" for="modoAppend">Agregar (evita duplicados)</label>
+              <input class="form-check-input" type="radio" name="modo" id="modo_append" value="append" checked>
+              <label class="form-check-label" for="modo_append">Agregar (evita duplicados)</label>
             </div>
             <div class="form-check">
-              <input class="form-check-input" type="radio" name="modo" id="modoReplace" value="replace">
-              <label class="form-check-label" for="modoReplace">Reemplazar mes (borra lo existente)</label>
-            </div>
-            <div class="form-text small-muted">
-              Si eliges <strong>Reemplazar</strong>, se eliminarán los registros que coincidan con el
-              <em>Mes de Descarga</em> y <em>Año de reporte</em> del archivo antes de insertar.
-              Úsalo cuando subas un mes completo corregido.
+              <input class="form-check-input" type="radio" name="modo" id="modo_replace" value="replace">
+              <label class="form-check-label" for="modo_replace">Reemplazar mes (borra lo existente)</label>
             </div>
           </div>
         </div>
@@ -86,6 +92,13 @@
         <button class="btn btn-outline-secondary" type="reset" id="btnReset">
           <i class="bi bi-eraser me-1"></i> Limpiar
         </button>
+        <button class="btn btn-outline-warning ms-auto" type="button" id="btnAnular">
+          <i class="bi bi-arrow-counterclockwise me-1"></i> Anular importación anterior
+        </button>
+      </div>
+
+      <div class="row g-3 align-items-center">
+        <div class="col-auto small text-muted">Tiempo transcurrido: <span id="timer">00:00</span></div>
       </div>
 
       <div class="d-none" id="pgwrap">
@@ -105,36 +118,65 @@
   </div>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
   const API_URL = 'api/procedimientos_importar.php';
   const $ = (s,d=document)=>d.querySelector(s);
 
-  let controller = null;
-  let fakeTimer = null;
+  let controller = null, fakeTimer = null, t0 = 0, tick = null;
 
-  function escapeHTML(s){
-    return (s ?? '').toString().replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+  function escapeHTML(s){ return (s ?? '').toString().replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+  function setProgress(p){ $('#pgwrap').classList.remove('d-none'); $('#bar').style.width = p + '%'; $('#pct').textContent = p + '%'; }
+  function startFakeProgress(){ let p=5; setProgress(p); fakeTimer=setInterval(()=>{ p=Math.min(p+Math.random()*4+1,85); setProgress(Math.round(p)); if(p>=85){clearInterval(fakeTimer);fakeTimer=null;} },400); }
+  function stopFakeProgress(){ if(fakeTimer){ clearInterval(fakeTimer); fakeTimer=null; } }
+  function fmt(ms){ const s=Math.floor(ms/1000), m=String(Math.floor(s/60)).padStart(2,'0'), ss=String(s%60).padStart(2,'0'); return `${m}:${ss}`; }
+  function startTimer(){ t0=performance.now(); $('#timer').textContent='00:00'; tick=setInterval(()=>{ $('#timer').textContent=fmt(performance.now()-t0); },500); }
+  function stopTimer(){ if(tick){ clearInterval(tick); tick=null; } }
+
+  async function fetchHistorial(){
+    try{
+      const r = await fetch(API_URL+'?historial=1');
+      const j = await r.json();
+      if(!j.ok) return;
+      const box = $('#historialBox'), list = $('#histList');
+      list.innerHTML = '';
+      j.historial.forEach(h=>{
+        const d=new Date(h.started_at);
+        const el=document.createElement('div');
+        el.className='itm';
+        el.innerHTML = `
+          <div class="d-flex justify-content-between">
+            <div>
+              <strong class="d-block">${escapeHTML(h.filename||'archivo')}</strong>
+              <small>${escapeHTML(h.mode||'-')} • ${d.toLocaleString()}</small>
+              <div class="small text-muted">ins: ${h.inserted} — salt: ${h.skipped}</div>
+            </div>
+            <div class="ms-2">
+              <button class="btn btn-sm btn-outline-danger" data-anular="${h.import_id}"><i class="bi bi-x-circle"></i></button>
+            </div>
+          </div>`;
+        list.appendChild(el);
+      });
+      box.classList.remove('d-none');
+    }catch{}
   }
 
-  function setProgress(p){
-    $('#pgwrap').classList.remove('d-none');
-    $('#bar').style.width = p + '%';
-    $('#pct').textContent = p + '%';
+  async function anular(import_id=null){
+    const fd = new FormData();
+    fd.append('accion','anular');
+    if(import_id) fd.append('import_id', import_id);
+    const r = await fetch(API_URL, {method:'POST', body:fd});
+    const j = await r.json().catch(()=>({ok:false,error:'Respuesta no JSON'}));
+    if(!j.ok){ alert('No se pudo anular: '+(j.error||'desconocido')); return; }
+    $('#msg').innerHTML = `🗑️ Importación anulada: <code>${j.anulado}</code> — filas eliminadas: <strong>${j.eliminadas}</strong>`;
+    fetchHistorial();
   }
 
-  function startFakeProgress(){
-    let p = 5;
-    setProgress(p);
-    fakeTimer = setInterval(()=>{
-      p = Math.min(p + Math.random()*4 + 1, 85);
-      setProgress(Math.round(p));
-      if(p >= 85){ clearInterval(fakeTimer); fakeTimer = null; }
-    }, 400);
-  }
-  function stopFakeProgress(){
-    if (fakeTimer){ clearInterval(fakeTimer); fakeTimer = null; }
-  }
+  document.addEventListener('click', (e)=>{
+    const btn = e.target.closest('[data-anular]');
+    if(btn){ e.preventDefault(); anular(btn.getAttribute('data-anular')); }
+  });
+  $('#btnAnularUltimo').addEventListener('click', ()=>anular());
+  $('#btnAnular').addEventListener('click', ()=>anular());
 
   $('#frm').addEventListener('submit', async (e)=>{
     e.preventDefault();
@@ -144,10 +186,7 @@
     const fd = new FormData();
     fd.append('archivo', file);
     fd.append('tiene_header', $('#tieneHeader').checked ? '1' : '0');
-
-    // ⬇️ MODO: enviar siempre (append | replace)
-    const modo = document.querySelector('input[name="modo"]:checked')?.value || 'append';
-    fd.append('modo', modo);
+    fd.append('modo', $('#modo_replace').checked ? 'replace' : 'append');
 
     controller = new AbortController();
     $('#btnEnviar').disabled = true;
@@ -155,52 +194,31 @@
     $('#msg').textContent = 'Subiendo…';
     $('#res').textContent = '';
     $('#raw').classList.add('d-none');
-    startFakeProgress();
+    startFakeProgress(); startTimer();
 
     try{
       const r = await fetch(API_URL, { method:'POST', body: fd, signal: controller.signal });
-      stopFakeProgress();
-      setProgress(100);
+      stopFakeProgress(); setProgress(100); stopTimer();
 
-      // ——— parseo tolerante
-      const raw = await r.text();
-      let j;
-      try { j = JSON.parse(raw); }
-      catch { j = { ok:false, error: raw }; }
-
+      const raw = await r.text(); let j; try{ j=JSON.parse(raw); }catch{ j={ok:false,error:raw}; }
       if(!r.ok || !j.ok){
         $('#msg').innerHTML = '⚠ Error: ' + escapeHTML(j.error || 'desconocido');
-        if (j.debug) {
-          $('#raw').classList.remove('d-none');
-          $('#raw').innerHTML = escapeHTML(j.debug);
-        } else if (typeof j.error === 'string' && j.error.trim().startsWith('<')) {
-          $('#raw').classList.remove('d-none');
-          $('#raw').innerHTML = escapeHTML(j.error);
-        }
+        if(j.debug){ $('#raw').classList.remove('d-none'); $('#raw').innerHTML = escapeHTML(j.debug); }
         return;
       }
-
-      $('#msg').innerHTML = '✅ Importación completada';
+      $('#msg').innerHTML = `✅ Importación completada (modo: <strong>${j.modo}</strong>) — import_id: <code>${j.import_id}</code>`;
       const errs = Array.isArray(j.errores) ? j.errores.length : (j.errores ?? 0);
       $('#res').innerHTML =
         `<div class="alert alert-success mt-2">
-           Modo: <strong>${modo}</strong><br>
            Insertados: <strong>${j.insertados}</strong> — Saltados: <strong>${j.saltados}</strong> — Errores: <strong>${errs}</strong>
          </div>` +
         (Array.isArray(j.errores) && j.errores.length
-          ? `<details class="mt-2"><summary>Errores (${j.errores.length})</summary><pre class="mono">${escapeHTML(j.errores.slice(0,50).join('\n'))}${j.errores.length>50?'\n...':''}</pre></details>`
-          : '') +
-        (Array.isArray(j.warnings) && j.warnings.length
-          ? `<details class="mt-2"><summary>Advertencias (${j.warnings.length})</summary><pre class="mono">${escapeHTML(j.warnings.join('\n'))}</pre></details>`
-          : '');
+          ? `<details class="mt-2"><summary>Errores (${j.errores.length})</summary><pre class="mono">${escapeHTML(j.errores.slice(0,50).join('\n'))}${j.errores.length>50?'\n…':''}</pre></details>` : '');
 
+      fetchHistorial();
     }catch(err){
-      stopFakeProgress();
-      if(err.name === 'AbortError'){
-        $('#msg').textContent = '⛔ Importación cancelada por el usuario.';
-      }else{
-        $('#msg').textContent = '⚠ ' + (err.message || String(err));
-      }
+      stopFakeProgress(); stopTimer();
+      $('#msg').textContent = (err.name==='AbortError') ? '⛔ Importación cancelada.' : ('⚠ ' + (err.message || String(err)));
     }finally{
       $('#btnEnviar').disabled = false;
       $('#btnCancelar').disabled = true;
@@ -211,15 +229,12 @@
   $('#btnCancelar').addEventListener('click', ()=>{ if(controller){ controller.abort(); } });
 
   $('#btnReset').addEventListener('click', ()=>{
-    $('#msg').textContent = '';
-    $('#res').textContent = '';
-    $('#raw').textContent = '';
-    $('#raw').classList.add('d-none');
-    stopFakeProgress();
-    $('#bar').style.width='0%';
-    $('#pct').textContent='0%';
-    $('#pgwrap').classList.add('d-none');
+    $('#msg').textContent=''; $('#res').textContent=''; $('#raw').textContent=''; $('#raw').classList.add('d-none');
+    stopFakeProgress(); stopTimer(); $('#bar').style.width='0%'; $('#pct').textContent='0%'; $('#pgwrap').classList.add('d-none'); $('#timer').textContent='00:00';
   });
+
+  // Cargar historial al abrir
+  fetchHistorial();
 </script>
 </body>
 </html>

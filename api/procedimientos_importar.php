@@ -7,34 +7,34 @@ declare(strict_types=1);
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
-/* ==============================
-   UI (GET) opcional
-   ============================== */
-if ($method === 'GET') {
+/* =========================================================
+   UI (GET) mínimo
+   ========================================================= */
+if ($method === 'GET' && !isset($_GET['historial'])) {
   header('Content-Type: text/html; charset=utf-8'); ?>
-<!doctype html>
-<html lang="es"><head>
-  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Importar Procedimientos Adjudicados</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/>
-</head>
-<body class="p-3">
-  <div class="container"><h1 class="h5">Endpoint de importación</h1><p>Usa POST con archivo.</p></div>
+<!doctype html><html lang="es"><meta charset="utf-8"><title>Importar</title>
+<body style="font:14px system-ui;padding:16px">
+  <h3>Endpoint de importación</h3>
+  <p>Usa <code>POST</code> con el archivo en el campo <code>archivo</code>.</p>
+  <ul>
+    <li><code>modo</code>: <em>append</em> | <em>replace</em></li>
+    <li>GET <code>?historial=1</code> devuelve el historial</li>
+    <li>POST <code>accion=anular</code> (opcional <code>import_id</code>)</li>
+  </ul>
 </body></html>
 <?php exit; }
 
-/* ==============================
-   CORS / HEADERS (POST) + JSON-safe
-   ============================== */
+/* =========================================================
+   CORS + JSON-safe
+   ========================================================= */
 if ($method === 'OPTIONS') { http_response_code(204); exit; }
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
-ini_set('display_errors', '0'); // no escupir HTML
+ini_set('display_errors', '0');
 ob_start();
 set_error_handler(function($severity,$message,$file,$line){
   throw new ErrorException($message,0,$severity,$file,$line);
@@ -53,40 +53,12 @@ register_shutdown_function(function(){
   }
 });
 
-if ($method !== 'POST') {
-  http_response_code(405);
-  echo json_encode(['ok'=>false,'error'=>'Método no permitido (usa POST)'], JSON_UNESCAPED_UNICODE);
-  exit;
-}
-if (!isset($_FILES['archivo']) || $_FILES['archivo']['error'] !== UPLOAD_ERR_OK) {
-  http_response_code(400);
-  echo json_encode(['ok'=>false,'error'=>'Archivo no recibido (campo "archivo")'], JSON_UNESCAPED_UNICODE);
-  exit;
-}
-
-/* ==============================
-   Validación extensión
-   ============================== */
-$name = $_FILES['archivo']['name'] ?? '';
-$ext  = strtolower(pathinfo($name, PATHINFO_EXTENSION));
-if (!in_array($ext, ['csv','txt','tsv'], true)) {
-  http_response_code(400);
-  echo json_encode(['ok'=>false,'error'=>'Formato no permitido. Use .csv, .tsv o .txt'], JSON_UNESCAPED_UNICODE);
-  exit;
-}
-
-/* ==============================
-   Lectura del modo (append | replace)
-   ============================== */
-$modo = isset($_POST['modo']) && $_POST['modo']==='replace' ? 'replace' : 'append';
-
-ignore_user_abort(false);
-
-/* ==============================
-   CONEXIÓN A POSTGRES
-   ============================== */
+/* =========================================================
+   Conexión a Postgres
+   ========================================================= */
 $DATABASE_URL = getenv('DATABASE_URL');
 if (!$DATABASE_URL || stripos($DATABASE_URL,'postgres')===false) {
+  // fallback (Render)
   $DATABASE_URL = 'postgresql://licitaciones_bmd_user:vFgswY5U7MaSqqexdhjgAE5M9fBpT2OQ@dpg-d3g2v7j3fgac73c4eek0-a.oregon-postgres.render.com:5432/licitaciones_bmd?sslmode=require';
 }
 try {
@@ -106,22 +78,43 @@ try {
   exit;
 }
 
-/* ==============================
-   HELPERS (encoding + normalización)
-   ============================== */
+/* =========================================================
+   Asegurar esquema (columns / indices / log)
+   ========================================================= */
+function ensure_schema(PDO $pdo): void {
+  // columnas auxiliares en tabla principal
+  $pdo->exec('ALTER TABLE public."Procedimientos Adjudicados" ADD COLUMN IF NOT EXISTS fingerprint text');
+  $pdo->exec('ALTER TABLE public."Procedimientos Adjudicados" ADD COLUMN IF NOT EXISTS import_id  text');
+  // índice único para ON CONFLICT
+  $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS "uniq_procadj_fingerprint" ON public."Procedimientos Adjudicados"(fingerprint)');
+  // historial
+  $pdo->exec('CREATE TABLE IF NOT EXISTS public.import_log (
+    import_id   text PRIMARY KEY,
+    filename    text,
+    mode        text,
+    inserted    integer DEFAULT 0,
+    skipped     integer DEFAULT 0,
+    mes_ano     text[],
+    started_at  timestamptz DEFAULT now(),
+    finished_at timestamptz
+  )');
+}
+ensure_schema($pdo);
+
+/* =========================================================
+   Helpers
+   ========================================================= */
 function to_utf8($s): string {
   $s = (string)($s ?? '');
   if ($s === '') return '';
-  if (function_exists('mb_detect_encoding') && mb_detect_encoding($s, 'UTF-8', true)) return $s;
+  if (function_exists('mb_detect_encoding') && mb_detect_encoding($s,'UTF-8',true)) return $s;
   foreach (['Windows-1252','ISO-8859-1','ISO-8859-15'] as $enc) {
     $conv = @mb_convert_encoding($s, 'UTF-8', $enc);
     if ($conv !== false && $conv !== '') return $conv;
   }
   return $s;
 }
-function u_upper(string $s): string {
-  return function_exists('mb_strtoupper') ? mb_strtoupper($s,'UTF-8') : strtoupper($s);
-}
+function u_upper(string $s): string { return function_exists('mb_strtoupper') ? mb_strtoupper($s,'UTF-8') : strtoupper($s); }
 function norm_header($s): string {
   $s = to_utf8($s);
   $s = preg_replace('/^\xEF\xBB\xBF/', '', $s);
@@ -132,7 +125,22 @@ function norm_header($s): string {
   return $tmp ?? '';
 }
 function norm_key($s): string { return u_upper(norm_header((string)$s)); }
-
+function strip_accents($s): string {
+  $s = to_utf8($s);
+  return strtr($s, 'ÁáÉéÍíÓóÚúÜüÑñ', 'AaEeIiOoUuUuNn');
+}
+function label_key($s): string {
+  $s = strip_accents(norm_header($s));
+  $s = u_upper($s);
+  $tmp = preg_replace('/[^A-Z0-9]+/u', ' ', $s);
+  if ($tmp === null) $tmp = preg_replace('/[^A-Z0-9]+/', ' ', $s);
+  $s = $tmp ?? '';
+  $tmp = preg_replace('/\s+/u', ' ', trim($s));
+  if ($tmp === null) $tmp = preg_replace('/\s+/', ' ', trim($s));
+  $s = $tmp ?? '';
+  $tokens = array_values(array_filter(explode(' ', $s), fn($t)=>$t!=='' && !in_array($t,['DE','DEL','EL','LA','LOS','LAS','OF','THE'],true)));
+  return implode(' ', $tokens);
+}
 function norm_date(?string $s): ?string {
   $s = trim((string)$s); if ($s==='' || strtoupper($s)==='NULL') return null;
   $s2 = str_replace('/', '-', $s);
@@ -161,34 +169,77 @@ function norm_bigint_text(?string $s): ?string {
   }
   $digits = preg_replace('/\D+/', '', $s); return $digits === '' ? null : $digits;
 }
-
-/* —— Normalización de etiquetas (encabezados) —— */
-function strip_accents($s): string {
-  $s = to_utf8($s);
-  $from = 'ÁáÉéÍíÓóÚúÜüÑñ';
-  $to   = 'AaEeIiOoUuUuNn';
-  return strtr($s, $from, $to);
-}
-function label_key($s): string {
-  $s = norm_header($s);
-  $s = strip_accents($s);
-  $s = u_upper($s);
-  $tmp = preg_replace('/[^A-Z0-9]+/u', ' ', $s);
-  if ($tmp === null) $tmp = preg_replace('/[^A-Z0-9]+/', ' ', $s);
-  $s = $tmp ?? '';
-  $tmp = preg_replace('/\s+/u', ' ', trim($s));
-  if ($tmp === null) $tmp = preg_replace('/\s+/', ' ', trim($s));
-  $s = $tmp ?? '';
-  $tokens = array_values(array_filter(explode(' ', $s), function($t){
-    static $stop=['DE','DEL','EL','LA','LOS','LAS','OF','THE'];
-    return $t!=='' && !in_array($t,$stop,true);
-  }));
-  return implode(' ', $tokens); // ej: "ANO REPORTE"
+function uuidv4(): string {
+  $d = random_bytes(16);
+  $d[6] = chr((ord($d[6]) & 0x0f) | 0x40);
+  $d[8] = chr((ord($d[8]) & 0x3f) | 0x80);
+  return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($d), 4));
 }
 
-/* ==============================
-   DEFINICIÓN DE COLUMNAS
-   ============================== */
+/* =========================================================
+   Atajo: historial (GET ?historial=1)
+   ========================================================= */
+if ($method === 'GET' && isset($_GET['historial'])) {
+  $rows = $pdo->query('SELECT import_id, filename, mode, inserted, skipped, started_at, finished_at
+                       FROM public.import_log
+                       ORDER BY started_at DESC
+                       LIMIT 30')->fetchAll();
+  echo json_encode(['ok'=>true,'historial'=>$rows], JSON_UNESCAPED_UNICODE);
+  exit;
+}
+
+/* =========================================================
+   Acciones POST alternativas: anular
+   ========================================================= */
+$accion = $_POST['accion'] ?? 'importar';
+
+if ($accion === 'anular') {
+  $import_id = trim((string)($_POST['import_id'] ?? ''));
+  if ($import_id === '') {
+    // último import
+    $row = $pdo->query('SELECT import_id FROM public.import_log ORDER BY started_at DESC LIMIT 1')->fetch();
+    if (!$row) { echo json_encode(['ok'=>false,'error'=>'No hay importaciones previas para anular']); exit; }
+    $import_id = $row['import_id'];
+  }
+
+  $pdo->beginTransaction();
+  try{
+    $del = $pdo->prepare('DELETE FROM public."Procedimientos Adjudicados" WHERE import_id = :id');
+    $del->execute([':id'=>$import_id]);
+    $deleted = $del->rowCount();
+
+    $pdo->prepare('DELETE FROM public.import_log WHERE import_id = :id')->execute([':id'=>$import_id]);
+    $pdo->commit();
+    echo json_encode(['ok'=>true,'anulado'=>$import_id,'eliminadas'=>$deleted], JSON_UNESCAPED_UNICODE);
+  }catch(Throwable $e){
+    $pdo->rollBack();
+    echo json_encode(['ok'=>false,'error'=>'No se pudo anular: '.$e->getMessage()], JSON_UNESCAPED_UNICODE);
+  }
+  exit;
+}
+
+/* =========================================================
+   Validación de archivo (para importar)
+   ========================================================= */
+if (!isset($_FILES['archivo']) || $_FILES['archivo']['error'] !== UPLOAD_ERR_OK) {
+  http_response_code(400);
+  echo json_encode(['ok'=>false,'error'=>'Archivo no recibido (campo "archivo")'], JSON_UNESCAPED_UNICODE);
+  exit;
+}
+$name = $_FILES['archivo']['name'] ?? '';
+$ext  = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+if (!in_array($ext, ['csv','txt','tsv'], true)) {
+  http_response_code(400);
+  echo json_encode(['ok'=>false,'error'=>'Formato no permitido. Use .csv, .tsv o .txt'], JSON_UNESCAPED_UNICODE);
+  exit;
+}
+$modo = ($_POST['modo'] ?? 'append') === 'replace' ? 'replace' : 'append';
+
+ignore_user_abort(false);
+
+/* =========================================================
+   Definición de columnas/placeholder
+   ========================================================= */
 $canon = [
   'Mes de Descarga',
   'Año de reporte',
@@ -235,19 +286,18 @@ $ph = [
   'PROD_ID_CL'=>'c_prod_id_cl'
 ];
 
-/* —— Diccionario canónico por clave normalizada —— */
+/* Diccionario headers */
 $canonByKey = [];
 foreach ($canon as $c) { $canonByKey[label_key($c)] = $c; }
 foreach ($syn as $k => $target) { $canonByKey[label_key($k)] = $target; }
 
-/* ==============================
-   ABRIR ARCHIVO + DELIMITADOR
-   ============================== */
+/* =========================================================
+   Abrir archivo y detectar delimitador
+   ========================================================= */
 $tmp = $_FILES['archivo']['tmp_name'];
 $fh  = fopen($tmp, 'r');
 if (!$fh) { http_response_code(400); echo json_encode(['ok'=>false,'error'=>'No se pudo abrir el archivo subido'], JSON_UNESCAPED_UNICODE); exit; }
 
-/* Detectar delimitador */
 $firstLineRaw = fgets($fh);
 if ($firstLineRaw === false) { fclose($fh); http_response_code(400); echo json_encode(['ok'=>false,'error'=>'Archivo vacío'], JSON_UNESCAPED_UNICODE); exit; }
 rewind($fh);
@@ -256,12 +306,7 @@ arsort($cands); $delimiter = array_key_first($cands) ?: ","; if (($cands[$delimi
 
 /* Leer encabezados */
 $header = fgetcsv($fh, 0, $delimiter);
-if ($header === false || $header === null) {
-  fclose($fh);
-  http_response_code(400);
-  echo json_encode(['ok'=>false,'error'=>'No se pudo leer la fila de encabezados'], JSON_UNESCAPED_UNICODE);
-  exit;
-}
+if ($header === false || $header === null) { fclose($fh); http_response_code(400); echo json_encode(['ok'=>false,'error'=>'No se pudo leer la fila de encabezados'], JSON_UNESCAPED_UNICODE); exit; }
 $header = array_map('norm_header', (array)$header);
 $header_norm_join = implode('|', array_map('label_key', $header));
 
@@ -274,55 +319,52 @@ for ($i=0; $i<count($header); $i++) {
   if ($hCanon !== null) { $map[$i]=$hCanon; $canon_set[$hCanon]=true; }
   $en_archivo[]=$h;
 }
-$faltan = [];
-foreach ($canon_set as $c=>$ok) { if (!$ok && empty($optional[$c])) $faltan[]=$c; }
-if ($faltan) {
-  fclose($fh);
-  echo json_encode(['ok'=>false,'error'=>'Encabezados no coinciden con la tabla','faltan'=>$faltan,'en_archivo'=>$en_archivo], JSON_UNESCAPED_UNICODE);
-  exit;
-}
+$faltan=[]; foreach ($canon_set as $c=>$ok) { if (!$ok && empty($optional[$c])) $faltan[]=$c; }
+if ($faltan) { fclose($fh); echo json_encode(['ok'=>false,'error'=>'Encabezados no coinciden con la tabla','faltan'=>$faltan,'en_archivo'=>$en_archivo], JSON_UNESCAPED_UNICODE); exit; }
 
-/* ==============================
-   PREP INSERT (con fingerprint + ON CONFLICT)
-   ============================== */
+/* =========================================================
+   Prep INSERT con fingerprint + import_id
+   ========================================================= */
 $colsSql  = implode('","', $canon);
 $placeSql = implode(', ', array_map(fn($c)=>':'.$ph[$c], $canon));
-$sql = 'INSERT INTO public."Procedimientos Adjudicados" ("'.$colsSql.'","fingerprint")
-        VALUES ('.$placeSql.', :fp)
-        ON CONFLICT ("fingerprint") DO NOTHING';
+$sql = 'INSERT INTO public."Procedimientos Adjudicados"
+        ("'.$colsSql.'","fingerprint","import_id")
+        VALUES ('.$placeSql.', :fp, :import_id)
+        ON CONFLICT (fingerprint) DO NOTHING';
 $stmt = $pdo->prepare($sql);
 
-/* ==============================
-   PRIMERA PASADA: normalizar, armar params, detectar pares mes-año,
-   y desduplicar dentro del archivo
-   ============================== */
-$rows = [];           // cada item: ['params'=>..., 'fp'=>...]
-$pairs = [];          // set de "mes|año" no vacíos
-$seen = [];           // fingerprints vistos en este upload
-$linea = 1;
+/* =========================================================
+   Importar
+   ========================================================= */
+$import_id = uuidv4();
+$insertados=0; $saltados=0; $errores=[]; $linea=1;
+$seen = [];               // desdup dentro del archivo
+$pares_borrados = [];     // para replace: pares mes|año ya borrados
+$mesAnoVistos   = [];     // para guardar en log (resumen)
+
+$pdo->beginTransaction();
+// log start
+$pdo->prepare('INSERT INTO public.import_log(import_id, filename, mode, inserted, skipped, mes_ano, started_at)
+               VALUES(:id,:fn,:md,0,0,ARRAY[]::text[], now())')
+    ->execute([':id'=>$import_id, ':fn'=>basename($name), ':md'=>$modo]);
 
 while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
   $linea++;
 
-  // Saltar filas completamente vacías
-  $allEmpty = true;
-  foreach ($row as $cell) { if (trim((string)$cell) !== '') { $allEmpty = false; break; } }
+  // Saltar vacías
+  $allEmpty = true; foreach ($row as $cell) { if (trim((string)$cell) !== '') { $allEmpty = false; break; } }
   if ($allEmpty) continue;
 
-  // Saltar encabezados repetidos dentro del archivo
+  // Saltar encabezado repetido
   $row_norm_join = implode('|', array_map('label_key', array_map('strval', $row)));
   if ($row_norm_join === $header_norm_join) continue;
 
-  // valores brutos por columna canónica
+  // Mapear valores crudos
   $vals = [];
   foreach ($map as $idx=>$canonName) { $vals[$canonName] = $row[$idx] ?? null; }
+  if (!array_key_exists('Año de reporte', $vals)) $vals['Año de reporte'] = null;
 
-  // Año de reporte: sin derivar (si no viene => NULL)
-  if (!array_key_exists('Año de reporte', $vals)) {
-    $vals['Año de reporte'] = null;
-  }
-
-  // Normalización por tipo -> $params
+  // Normalizar
   $params = [];
   foreach ($canon as $cname) {
     $raw = $vals[$cname] ?? null;
@@ -331,112 +373,88 @@ while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
       case 'FECHA_ADJUD_FIRME':
       case 'FECHA_SOL_CONTRA':
       case 'FECHA_SOL_CONTRA_CL':
-        $params[':'.$ph[$cname]] = norm_date($raw);
-        break;
+        $params[':'.$ph[$cname]] = norm_date($raw); break;
 
       case 'MONTO_ADJU_LINEA':
       case 'MONTO_ADJU_LINEA_CRC':
       case 'MONTO_ADJU_LINEA_USD':
       case 'CANTIDAD':
       case 'MONTO_UNITARIO':
-        $params[':'.$ph[$cname]] = norm_num($raw);
-        break;
+        $params[':'.$ph[$cname]] = norm_num($raw); break;
 
       case 'PROD_ID':
       case 'PROD_ID_CL':
-        $params[':'.$ph[$cname]] = norm_bigint_text($raw);
-        break;
+        $params[':'.$ph[$cname]] = norm_bigint_text($raw); break;
 
-      case 'Año de reporte': // guardar tal cual (texto)
+      case 'Año de reporte':
         $val = trim((string)$raw);
-        $params[':'.$ph[$cname]] = ($val === '') ? null : $val;
-        break;
+        $params[':'.$ph[$cname]] = ($val==='')?null:$val; break;
 
       default:
         $val = trim((string)$raw);
-        $params[':'.$ph[$cname]] = ($val==='') ? null : $val;
-        break;
+        $params[':'.$ph[$cname]] = ($val==='')?null:$val; break;
     }
   }
 
-  // fingerprint estable (orden canónico)
-  $concat = [];
-  foreach ($canon as $cname) { $concat[] = (string)($params[':'.$ph[$cname]] ?? ''); }
-  $fp = md5(implode('|', $concat));
+  // Reemplazar mes: ejecuta delete UNA sola vez por par mes|año visto
+  if ($modo === 'replace') {
+    $mes = (string)($params[':'.$ph['Mes de Descarga']] ?? '');
+    $ano = (string)($params[':'.$ph['Año de reporte']] ?? '');
+    $key = $mes.'|'.$ano;
+    if ($mes !== '' && $ano !== '' && empty($pares_borrados[$key])) {
+      $del = $pdo->prepare('DELETE FROM public."Procedimientos Adjudicados" WHERE "Mes de Descarga" = :m AND "Año de reporte" = :a');
+      $del->execute([':m'=>$mes, ':a'=>$ano]);
+      $pares_borrados[$key] = true;
+    }
+  }
 
-  // dedupe por archivo
-  if (isset($seen[$fp])) continue;
+  // Fingerprint (cadena de valores normalizados en orden canónico)
+  $concat=[]; foreach ($canon as $cname) { $concat[] = (string)($params[':'.$ph[$cname]] ?? ''); }
+  $fp = md5(implode('|', $concat));
+  if (isset($seen[$fp])) { $saltados++; continue; }
   $seen[$fp] = true;
 
-  // recolectar pares mes-año (solo si ambos no son null)
-  $mes = $params[':'.$ph['Mes de Descarga']] ?? null;
-  $ano = $params[':'.$ph['Año de reporte']] ?? null;
-  if ($mes !== null && $ano !== null) {
-    $pairs[$mes.'|'.$ano] = [$mes,$ano];
+  // import_id + fp
+  $params[':fp'] = $fp;
+  $params[':import_id'] = $import_id;
+
+  // Savepoint + insert
+  $sp = 'sp_'.$linea;
+  $pdo->exec("SAVEPOINT $sp");
+  try {
+    $stmt->execute($params);
+    if ($stmt->rowCount() === 1) { $insertados++; }
+    else { $saltados++; }
+  } catch (Throwable $e) {
+    $pdo->exec("ROLLBACK TO SAVEPOINT $sp");
+    $saltados++;
+    if (count($errores)<1000) $errores[] = "Línea $linea: ".$e->getMessage();
   }
 
-  $params[':fp'] = $fp;
-  $rows[] = ['params'=>$params, 'fp'=>$fp];
+  // acumular mes-año para log
+  $mesAnoVistos[(string)($params[':'.$ph['Mes de Descarga']] ?? '').'|'.(string)($params[':'.$ph['Año de reporte']] ?? '')] = true;
 }
+
+$pdo->prepare('UPDATE public.import_log
+               SET inserted=:ins, skipped=:sk, mes_ano=:ma, finished_at=now()
+               WHERE import_id=:id')
+    ->execute([
+      ':ins'=>$insertados, ':sk'=>$saltados,
+      ':ma'=> '{'.implode(',', array_map(fn($k)=>'"'.str_replace('"','\"',$k).'"', array_keys($mesAnoVistos))).'}',
+      ':id'=>$import_id
+    ]);
+
+$pdo->commit();
 fclose($fh);
 
-/* ==============================
-   TRANSACCIÓN: borrar (si replace) e insertar
-   ============================== */
-$insertados=0; $saltados=0; $errores=[];
-
-$pdo->beginTransaction();
-
-try {
-  if ($modo === 'replace' && !empty($pairs)) {
-    // construir DELETE ... WHERE ("Mes de Descarga","Año de reporte") IN ((:m0,:a0),...)
-    $chunks = [];
-    $delParams = [];
-    $i=0;
-    foreach ($pairs as $k=>[$mes,$ano]) {
-      $chunks[] = '("Mes de Descarga","Año de reporte") = (:m'.$i.', :a'.$i.')';
-      $delParams[':m'.$i] = $mes;
-      $delParams[':a'.$i] = $ano;
-      $i++;
-    }
-    $sqlDel = 'DELETE FROM public."Procedimientos Adjudicados" WHERE '.implode(' OR ', $chunks);
-    $stmtDel = $pdo->prepare($sqlDel);
-    $stmtDel->execute($delParams);
-  }
-
-  // insertar todas las filas normalizadas
-  foreach ($rows as $idx=>$item) {
-    $sp = 'sp_'.($idx+1);
-    $pdo->exec("SAVEPOINT $sp");
-    try{
-      $stmt->execute($item['params']);
-      if ($stmt->rowCount() === 1) $insertados++; else $saltados++;
-    }catch(Throwable $e){
-      $pdo->exec("ROLLBACK TO SAVEPOINT $sp");
-      $saltados++;
-      if (count($errores)<1000) $errores[] = "Fila ".($idx+1).": ".$e->getMessage();
-    }
-  }
-
-  $pdo->commit();
-} catch (Throwable $e) {
-  $pdo->rollBack();
-  http_response_code(500);
-  $debug = ob_get_contents(); ob_end_clean();
-  echo json_encode(['ok'=>false,'error'=>'Error durante importación: '.$e->getMessage(),'debug'=>$debug], JSON_UNESCAPED_UNICODE);
-  exit;
-}
-
-/* Respuesta JSON */
-$debug = ob_get_contents();
-ob_end_clean();
+/* Respuesta */
+$debug = ob_get_contents(); ob_end_clean();
 echo json_encode([
-  'ok'         => true,
-  'modo'       => $modo,
-  'insertados' => $insertados,
-  'saltados'   => $saltados,
-  'errores'    => $errores,
-  'warnings'   => [],
-  'pares_mes_ano' => array_values(array_map(fn($p)=>['Mes'=>$p[0],'Año'=>$p[1]], $pairs)),
-  'debug'      => $debug ? trim(strip_tags($debug)) : null,
+  'ok'=>true,
+  'import_id'=>$import_id,
+  'modo'=>$modo,
+  'insertados'=>$insertados,
+  'saltados'=>$saltados,
+  'errores'=>$errores,
+  'debug'=>$debug?trim(strip_tags($debug)):null
 ], JSON_UNESCAPED_UNICODE);
