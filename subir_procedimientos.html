@@ -10,19 +10,13 @@
     :root{ --acento:#0B4912; --acento-2:#126a1a; }
     body{ background:#0b0f24; color:#0e1b2a; }
     .hero{ background:linear-gradient(180deg,#0b0f24 0%, #0e132c 100%); color:#eaf2ff; padding:48px 0 56px; }
-    .glass{ position:relative; background:#fff; border:1px solid rgba(0,0,0,.06); border-radius:18px; box-shadow:0 10px 30px rgba(0,0,0,.08); }
+    .glass{ background:#fff; border:1px solid rgba(0,0,0,.06); border-radius:18px; box-shadow:0 10px 30px rgba(0,0,0,.08); }
     .btn-acento{ background:var(--acento); color:#fff; border:none; }
     .btn-acento:hover{ filter:brightness(1.05); color:#fff; }
     .small-muted{ color:#6b7b91; font-size:.9rem; }
     code{ background:#f3f6fa; padding:.15rem .35rem; border-radius:.35rem; }
     .progress{ height:8px; }
     pre.mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; white-space:pre-wrap; }
-    /* historial en esquina */
-    #historialBox{ position:absolute; top:-10px; right:-10px; width:320px; max-height:360px; overflow:auto;
-      background:#ffffff; border:1px solid rgba(0,0,0,.08); border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.10); }
-    #historialBox .hdr{ padding:.5rem .75rem; border-bottom:1px solid rgba(0,0,0,.06); display:flex; align-items:center; justify-content:space-between; }
-    #historialBox .itm{ padding:.5rem .75rem; border-top:1px dashed rgba(0,0,0,.06); }
-    #historialBox .itm small{ color:#6b7b91; }
   </style>
 </head>
 <body>
@@ -42,15 +36,6 @@
 
 <main class="container" style="margin-top:-36px;margin-bottom:64px;">
   <div class="glass p-3 p-lg-4">
-    <!-- Historial (esquinero) -->
-    <aside id="historialBox" class="d-none">
-      <div class="hdr">
-        <strong class="small">Historial</strong>
-        <button id="btnAnularUltimo" class="btn btn-sm btn-outline-danger"><i class="bi bi-arrow-counterclockwise me-1"></i>Anular último</button>
-      </div>
-      <div id="histList"></div>
-    </aside>
-
     <form id="frm" class="vstack gap-3" enctype="multipart/form-data">
       <div class="row g-3">
         <div class="col-12 col-lg-8">
@@ -66,18 +51,6 @@
           <div class="form-check">
             <input class="form-check-input" type="checkbox" id="tieneHeader" checked>
             <label class="form-check-label" for="tieneHeader">Primera fila contiene encabezados</label>
-          </div>
-
-          <div class="mt-2">
-            <label class="form-label small">Modo de importación</label>
-            <div class="form-check">
-              <input class="form-check-input" type="radio" name="modo" id="modo_append" value="append" checked>
-              <label class="form-check-label" for="modo_append">Agregar (evita duplicados)</label>
-            </div>
-            <div class="form-check">
-              <input class="form-check-input" type="radio" name="modo" id="modo_replace" value="replace">
-              <label class="form-check-label" for="modo_replace">Reemplazar mes (borra lo existente)</label>
-            </div>
           </div>
         </div>
       </div>
@@ -106,9 +79,7 @@
           <small class="text-muted">Progreso</small>
           <small class="text-muted" id="pct">0%</small>
         </div>
-        <div class="progress">
-          <div class="progress-bar bg-success" id="bar" style="width:0%"></div>
-        </div>
+        <div class="progress"><div class="progress-bar bg-success" id="bar" style="width:0%"></div></div>
       </div>
 
       <div id="msg" class="small"></div>
@@ -116,16 +87,35 @@
       <pre id="raw" class="mono small d-none p-2 bg-light border rounded"></pre>
     </form>
   </div>
+
+  <!-- Historial debajo -->
+  <section class="glass p-3 p-lg-4 mt-3">
+    <div class="d-flex align-items-center justify-content-between">
+      <h2 class="h6 m-0">Historial de importaciones</h2>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-secondary" id="btnRefrescar"><i class="bi bi-arrow-clockwise me-1"></i>Actualizar</button>
+        <button class="btn btn-sm btn-outline-danger" id="btnAnularUltimo"><i class="bi bi-arrow-counterclockwise me-1"></i>Anular último</button>
+      </div>
+    </div>
+    <div class="table-responsive mt-3">
+      <table class="table table-sm align-middle">
+        <thead><tr>
+          <th>Fecha</th><th>Archivo</th><th>Modo</th><th>Insertados</th><th>Saltados</th><th></th>
+        </tr></thead>
+        <tbody id="histRows"><tr><td colspan="6" class="text-muted">Cargando…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
 </main>
 
 <script>
   const API_URL = 'api/procedimientos_importar.php';
   const $ = (s,d=document)=>d.querySelector(s);
 
-  let controller = null, fakeTimer = null, t0 = 0, tick = null;
+  let controller=null, fakeTimer=null, t0=0, tick=null;
 
   function escapeHTML(s){ return (s ?? '').toString().replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
-  function setProgress(p){ $('#pgwrap').classList.remove('d-none'); $('#bar').style.width = p + '%'; $('#pct').textContent = p + '%'; }
+  function setProgress(p){ $('#pgwrap').classList.remove('d-none'); $('#bar').style.width=p+'%'; $('#pct').textContent=p+'%'; }
   function startFakeProgress(){ let p=5; setProgress(p); fakeTimer=setInterval(()=>{ p=Math.min(p+Math.random()*4+1,85); setProgress(Math.round(p)); if(p>=85){clearInterval(fakeTimer);fakeTimer=null;} },400); }
   function stopFakeProgress(){ if(fakeTimer){ clearInterval(fakeTimer); fakeTimer=null; } }
   function fmt(ms){ const s=Math.floor(ms/1000), m=String(Math.floor(s/60)).padStart(2,'0'), ss=String(s%60).padStart(2,'0'); return `${m}:${ss}`; }
@@ -133,77 +123,66 @@
   function stopTimer(){ if(tick){ clearInterval(tick); tick=null; } }
 
   async function fetchHistorial(){
+    const body=$('#histRows'); body.innerHTML='<tr><td colspan="6" class="text-muted">Cargando…</td></tr>';
     try{
-      const r = await fetch(API_URL+'?historial=1');
-      const j = await r.json();
-      if(!j.ok) return;
-      const box = $('#historialBox'), list = $('#histList');
-      list.innerHTML = '';
+      const r = await fetch(API_URL+'?historial=1'); const j = await r.json();
+      if(!j.ok){ body.innerHTML='<tr><td colspan="6">No se pudo cargar</td></tr>'; return; }
+      if(!j.historial.length){ body.innerHTML='<tr><td colspan="6" class="text-muted">Sin registros</td></tr>'; return; }
+      body.innerHTML='';
       j.historial.forEach(h=>{
         const d=new Date(h.started_at);
-        const el=document.createElement('div');
-        el.className='itm';
-        el.innerHTML = `
-          <div class="d-flex justify-content-between">
-            <div>
-              <strong class="d-block">${escapeHTML(h.filename||'archivo')}</strong>
-              <small>${escapeHTML(h.mode||'-')} • ${d.toLocaleString()}</small>
-              <div class="small text-muted">ins: ${h.inserted} — salt: ${h.skipped}</div>
-            </div>
-            <div class="ms-2">
-              <button class="btn btn-sm btn-outline-danger" data-anular="${h.import_id}"><i class="bi bi-x-circle"></i></button>
-            </div>
-          </div>`;
-        list.appendChild(el);
+        const tr=document.createElement('tr');
+        tr.innerHTML = `
+          <td>${d.toLocaleString()}</td>
+          <td>${escapeHTML(h.filename||'-')}</td>
+          <td>${escapeHTML(h.mode||'-')}</td>
+          <td>${h.inserted}</td>
+          <td>${h.skipped}</td>
+          <td class="text-end">
+            <button class="btn btn-sm btn-outline-danger" data-anular="${h.import_id}">Anular</button>
+          </td>`;
+        body.appendChild(tr);
       });
-      box.classList.remove('d-none');
-    }catch{}
+    }catch{ body.innerHTML='<tr><td colspan="6">Error de red</td></tr>'; }
   }
 
   async function anular(import_id=null){
-    const fd = new FormData();
-    fd.append('accion','anular');
-    if(import_id) fd.append('import_id', import_id);
-    const r = await fetch(API_URL, {method:'POST', body:fd});
-    const j = await r.json().catch(()=>({ok:false,error:'Respuesta no JSON'}));
+    const fd=new FormData(); fd.append('accion','anular'); if(import_id) fd.append('import_id',import_id);
+    const r = await fetch(API_URL,{method:'POST',body:fd}); const j = await r.json().catch(()=>({ok:false,error:'Respuesta no JSON'}));
     if(!j.ok){ alert('No se pudo anular: '+(j.error||'desconocido')); return; }
     $('#msg').innerHTML = `🗑️ Importación anulada: <code>${j.anulado}</code> — filas eliminadas: <strong>${j.eliminadas}</strong>`;
     fetchHistorial();
   }
 
   document.addEventListener('click', (e)=>{
-    const btn = e.target.closest('[data-anular]');
-    if(btn){ e.preventDefault(); anular(btn.getAttribute('data-anular')); }
+    const btn = e.target.closest('[data-anular]'); if(btn){ e.preventDefault(); anular(btn.getAttribute('data-anular')); }
   });
   $('#btnAnularUltimo').addEventListener('click', ()=>anular());
   $('#btnAnular').addEventListener('click', ()=>anular());
+  $('#btnRefrescar').addEventListener('click', fetchHistorial);
 
   $('#frm').addEventListener('submit', async (e)=>{
     e.preventDefault();
     const file = $('#archivo').files[0];
-    if(!file){ $('#msg').textContent = 'Seleccione un archivo.'; return; }
+    if(!file){ $('#msg').textContent='Seleccione un archivo.'; return; }
 
     const fd = new FormData();
     fd.append('archivo', file);
-    fd.append('tiene_header', $('#tieneHeader').checked ? '1' : '0');
-    fd.append('modo', $('#modo_replace').checked ? 'replace' : 'append');
+    fd.append('tiene_header', $('#tieneHeader').checked ? '1' : '0'); // (solo para compatibilidad; el backend no lo usa)
 
     controller = new AbortController();
-    $('#btnEnviar').disabled = true;
-    $('#btnCancelar').disabled = false;
-    $('#msg').textContent = 'Subiendo…';
-    $('#res').textContent = '';
-    $('#raw').classList.add('d-none');
+    $('#btnEnviar').disabled=true; $('#btnCancelar').disabled=false;
+    $('#msg').textContent='Subiendo…'; $('#res').textContent=''; $('#raw').classList.add('d-none');
     startFakeProgress(); startTimer();
 
     try{
-      const r = await fetch(API_URL, { method:'POST', body: fd, signal: controller.signal });
+      const r = await fetch(API_URL,{method:'POST',body:fd,signal:controller.signal});
       stopFakeProgress(); setProgress(100); stopTimer();
 
       const raw = await r.text(); let j; try{ j=JSON.parse(raw); }catch{ j={ok:false,error:raw}; }
       if(!r.ok || !j.ok){
-        $('#msg').innerHTML = '⚠ Error: ' + escapeHTML(j.error || 'desconocido');
-        if(j.debug){ $('#raw').classList.remove('d-none'); $('#raw').innerHTML = escapeHTML(j.debug); }
+        $('#msg').innerHTML='⚠ Error: '+escapeHTML(j.error||'desconocido');
+        if(j.debug){ $('#raw').classList.remove('d-none'); $('#raw').innerHTML=escapeHTML(j.debug); }
         return;
       }
       $('#msg').innerHTML = `✅ Importación completada (modo: <strong>${j.modo}</strong>) — import_id: <code>${j.import_id}</code>`;
@@ -213,27 +192,19 @@
            Insertados: <strong>${j.insertados}</strong> — Saltados: <strong>${j.saltados}</strong> — Errores: <strong>${errs}</strong>
          </div>` +
         (Array.isArray(j.errores) && j.errores.length
-          ? `<details class="mt-2"><summary>Errores (${j.errores.length})</summary><pre class="mono">${escapeHTML(j.errores.slice(0,50).join('\n'))}${j.errores.length>50?'\n…':''}</pre></details>` : '');
-
+          ? `<details class="mt-2"><summary>Errores (${j.errores.length})</summary><pre class="mono">${escapeHTML(j.errores.slice(0,50).join('\n'))}${j.errores.length>50?'\n…':''}</pre></details>`:'');
       fetchHistorial();
     }catch(err){
       stopFakeProgress(); stopTimer();
-      $('#msg').textContent = (err.name==='AbortError') ? '⛔ Importación cancelada.' : ('⚠ ' + (err.message || String(err)));
+      $('#msg').textContent = (err.name==='AbortError') ? '⛔ Importación cancelada.' : ('⚠ '+(err.message||String(err)));
     }finally{
-      $('#btnEnviar').disabled = false;
-      $('#btnCancelar').disabled = true;
-      controller = null;
+      $('#btnEnviar').disabled=false; $('#btnCancelar').disabled=true; controller=null;
     }
   });
 
   $('#btnCancelar').addEventListener('click', ()=>{ if(controller){ controller.abort(); } });
+  $('#btnReset').addEventListener('click', ()=>{ $('#msg').textContent=''; $('#res').textContent=''; $('#raw').textContent=''; $('#raw').classList.add('d-none'); stopFakeProgress(); stopTimer(); $('#bar').style.width='0%'; $('#pct').textContent='0%'; $('#pgwrap').classList.add('d-none'); $('#timer').textContent='00:00'; });
 
-  $('#btnReset').addEventListener('click', ()=>{
-    $('#msg').textContent=''; $('#res').textContent=''; $('#raw').textContent=''; $('#raw').classList.add('d-none');
-    stopFakeProgress(); stopTimer(); $('#bar').style.width='0%'; $('#pct').textContent='0%'; $('#pgwrap').classList.add('d-none'); $('#timer').textContent='00:00';
-  });
-
-  // Cargar historial al abrir
   fetchHistorial();
 </script>
 </body>

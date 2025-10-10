@@ -7,9 +7,9 @@ declare(strict_types=1);
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
-/* =========================================================
-   UI (GET) mínimo
-   ========================================================= */
+/* ─────────────────────────────────────────────────────────
+   UI mínima (GET)
+   ───────────────────────────────────────────────────────── */
 if ($method === 'GET' && !isset($_GET['historial'])) {
   header('Content-Type: text/html; charset=utf-8'); ?>
 <!doctype html><html lang="es"><meta charset="utf-8"><title>Importar</title>
@@ -17,16 +17,15 @@ if ($method === 'GET' && !isset($_GET['historial'])) {
   <h3>Endpoint de importación</h3>
   <p>Usa <code>POST</code> con el archivo en el campo <code>archivo</code>.</p>
   <ul>
-    <li><code>modo</code>: <em>append</em> | <em>replace</em></li>
-    <li>GET <code>?historial=1</code> devuelve el historial</li>
+    <li>GET <code>?historial=1</code> devuelve historial</li>
     <li>POST <code>accion=anular</code> (opcional <code>import_id</code>)</li>
   </ul>
 </body></html>
 <?php exit; }
 
-/* =========================================================
+/* ─────────────────────────────────────────────────────────
    CORS + JSON-safe
-   ========================================================= */
+   ───────────────────────────────────────────────────────── */
 if ($method === 'OPTIONS') { http_response_code(204); exit; }
 
 header('Content-Type: application/json; charset=utf-8');
@@ -53,12 +52,11 @@ register_shutdown_function(function(){
   }
 });
 
-/* =========================================================
-   Conexión a Postgres
-   ========================================================= */
+/* ─────────────────────────────────────────────────────────
+   Conexión
+   ───────────────────────────────────────────────────────── */
 $DATABASE_URL = getenv('DATABASE_URL');
 if (!$DATABASE_URL || stripos($DATABASE_URL,'postgres')===false) {
-  // fallback (Render)
   $DATABASE_URL = 'postgresql://licitaciones_bmd_user:vFgswY5U7MaSqqexdhjgAE5M9fBpT2OQ@dpg-d3g2v7j3fgac73c4eek0-a.oregon-postgres.render.com:5432/licitaciones_bmd?sslmode=require';
 }
 try {
@@ -78,16 +76,13 @@ try {
   exit;
 }
 
-/* =========================================================
-   Asegurar esquema (columns / indices / log)
-   ========================================================= */
+/* ─────────────────────────────────────────────────────────
+   Esquema auxiliar
+   ───────────────────────────────────────────────────────── */
 function ensure_schema(PDO $pdo): void {
-  // columnas auxiliares en tabla principal
   $pdo->exec('ALTER TABLE public."Procedimientos Adjudicados" ADD COLUMN IF NOT EXISTS fingerprint text');
   $pdo->exec('ALTER TABLE public."Procedimientos Adjudicados" ADD COLUMN IF NOT EXISTS import_id  text');
-  // índice único para ON CONFLICT
   $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS "uniq_procadj_fingerprint" ON public."Procedimientos Adjudicados"(fingerprint)');
-  // historial
   $pdo->exec('CREATE TABLE IF NOT EXISTS public.import_log (
     import_id   text PRIMARY KEY,
     filename    text,
@@ -101,9 +96,9 @@ function ensure_schema(PDO $pdo): void {
 }
 ensure_schema($pdo);
 
-/* =========================================================
+/* ─────────────────────────────────────────────────────────
    Helpers
-   ========================================================= */
+   ───────────────────────────────────────────────────────── */
 function to_utf8($s): string {
   $s = (string)($s ?? '');
   if ($s === '') return '';
@@ -125,19 +120,12 @@ function norm_header($s): string {
   return $tmp ?? '';
 }
 function norm_key($s): string { return u_upper(norm_header((string)$s)); }
-function strip_accents($s): string {
-  $s = to_utf8($s);
-  return strtr($s, 'ÁáÉéÍíÓóÚúÜüÑñ', 'AaEeIiOoUuUuNn');
-}
+function strip_accents($s): string { $s = to_utf8($s); return strtr($s,'ÁáÉéÍíÓóÚúÜüÑñ','AaEeIiOoUuUuNn'); }
 function label_key($s): string {
   $s = strip_accents(norm_header($s));
   $s = u_upper($s);
-  $tmp = preg_replace('/[^A-Z0-9]+/u', ' ', $s);
-  if ($tmp === null) $tmp = preg_replace('/[^A-Z0-9]+/', ' ', $s);
-  $s = $tmp ?? '';
-  $tmp = preg_replace('/\s+/u', ' ', trim($s));
-  if ($tmp === null) $tmp = preg_replace('/\s+/', ' ', trim($s));
-  $s = $tmp ?? '';
+  $tmp = preg_replace('/[^A-Z0-9]+/u', ' ', $s); if ($tmp===null) $tmp = preg_replace('/[^A-Z0-9]+/',' ',$s); $s=$tmp??'';
+  $tmp = preg_replace('/\s+/u', ' ', trim($s));  if ($tmp===null) $tmp = preg_replace('/\s+/',' ',trim($s)); $s=$tmp??'';
   $tokens = array_values(array_filter(explode(' ', $s), fn($t)=>$t!=='' && !in_array($t,['DE','DEL','EL','LA','LOS','LAS','OF','THE'],true)));
   return implode(' ', $tokens);
 }
@@ -176,38 +164,34 @@ function uuidv4(): string {
   return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($d), 4));
 }
 
-/* =========================================================
-   Atajo: historial (GET ?historial=1)
-   ========================================================= */
+/* ─────────────────────────────────────────────────────────
+   GET historial
+   ───────────────────────────────────────────────────────── */
 if ($method === 'GET' && isset($_GET['historial'])) {
   $rows = $pdo->query('SELECT import_id, filename, mode, inserted, skipped, started_at, finished_at
                        FROM public.import_log
                        ORDER BY started_at DESC
-                       LIMIT 30')->fetchAll();
+                       LIMIT 50')->fetchAll();
   echo json_encode(['ok'=>true,'historial'=>$rows], JSON_UNESCAPED_UNICODE);
   exit;
 }
 
-/* =========================================================
-   Acciones POST alternativas: anular
-   ========================================================= */
+/* ─────────────────────────────────────────────────────────
+   POST: anular última / por id
+   ───────────────────────────────────────────────────────── */
 $accion = $_POST['accion'] ?? 'importar';
-
 if ($accion === 'anular') {
   $import_id = trim((string)($_POST['import_id'] ?? ''));
   if ($import_id === '') {
-    // último import
     $row = $pdo->query('SELECT import_id FROM public.import_log ORDER BY started_at DESC LIMIT 1')->fetch();
     if (!$row) { echo json_encode(['ok'=>false,'error'=>'No hay importaciones previas para anular']); exit; }
     $import_id = $row['import_id'];
   }
-
   $pdo->beginTransaction();
   try{
     $del = $pdo->prepare('DELETE FROM public."Procedimientos Adjudicados" WHERE import_id = :id');
     $del->execute([':id'=>$import_id]);
     $deleted = $del->rowCount();
-
     $pdo->prepare('DELETE FROM public.import_log WHERE import_id = :id')->execute([':id'=>$import_id]);
     $pdo->commit();
     echo json_encode(['ok'=>true,'anulado'=>$import_id,'eliminadas'=>$deleted], JSON_UNESCAPED_UNICODE);
@@ -218,9 +202,9 @@ if ($accion === 'anular') {
   exit;
 }
 
-/* =========================================================
-   Validación de archivo (para importar)
-   ========================================================= */
+/* ─────────────────────────────────────────────────────────
+   POST: importar (modo fijo: append)
+   ───────────────────────────────────────────────────────── */
 if (!isset($_FILES['archivo']) || $_FILES['archivo']['error'] !== UPLOAD_ERR_OK) {
   http_response_code(400);
   echo json_encode(['ok'=>false,'error'=>'Archivo no recibido (campo "archivo")'], JSON_UNESCAPED_UNICODE);
@@ -233,98 +217,64 @@ if (!in_array($ext, ['csv','txt','tsv'], true)) {
   echo json_encode(['ok'=>false,'error'=>'Formato no permitido. Use .csv, .tsv o .txt'], JSON_UNESCAPED_UNICODE);
   exit;
 }
-$modo = ($_POST['modo'] ?? 'append') === 'replace' ? 'replace' : 'append';
+$modo = 'append'; // ← SIEMPRE APPEND
 
-ignore_user_abort(false);
-
-/* =========================================================
-   Definición de columnas/placeholder
-   ========================================================= */
+/* Columnas/headers */
 $canon = [
-  'Mes de Descarga',
-  'Año de reporte',
-  'CEDULA','INSTITUCION','ANO','NUMERO_PROCEDIMIENTO',
-  'DESCR_PROCEDIMIENTO','LINEA','NRO_SICOP','TIPO_PROCEDIMIENTO',
-  'MODALIDAD_PROCEDIMIENTO','fecha_rev','CEDULA_PROVEEDOR','NOMBRE_PROVEEDOR',
-  'PERFIL_PROV','CEDULA_REPRESENTANTE','REPRESENTANTE','OBJETO_GASTO',
-  'MONEDA_ADJUDICADA','MONTO_ADJU_LINEA','MONTO_ADJU_LINEA_CRC','MONTO_ADJU_LINEA_USD',
-  'FECHA_ADJUD_FIRME','FECHA_SOL_CONTRA','PROD_ID','DESCR_BIEN_SERVICIO',
-  'CANTIDAD','UNIDAD_MEDIDA','MONTO_UNITARIO','MONEDA_PRECIO_EST',
-  'FECHA_SOL_CONTRA_CL','PROD_ID_CL'
+  'Mes de Descarga','Año de reporte','CEDULA','INSTITUCION','ANO','NUMERO_PROCEDIMIENTO',
+  'DESCR_PROCEDIMIENTO','LINEA','NRO_SICOP','TIPO_PROCEDIMIENTO','MODALIDAD_PROCEDIMIENTO','fecha_rev',
+  'CEDULA_PROVEEDOR','NOMBRE_PROVEEDOR','PERFIL_PROV','CEDULA_REPRESENTANTE','REPRESENTANTE','OBJETO_GASTO',
+  'MONEDA_ADJUDICADA','MONTO_ADJU_LINEA','MONTO_ADJU_LINEA_CRC','MONTO_ADJU_LINEA_USD','FECHA_ADJUD_FIRME',
+  'FECHA_SOL_CONTRA','PROD_ID','DESCR_BIEN_SERVICIO','CANTIDAD','UNIDAD_MEDIDA','MONTO_UNITARIO',
+  'MONEDA_PRECIO_EST','FECHA_SOL_CONTRA_CL','PROD_ID_CL'
 ];
-$optional = ['Año de reporte' => true];
-
+$optional = ['Año de reporte'=>true];
 $syn = [
-  'MES DE DESCARGA'  => 'Mes de Descarga',
-  'AÑO DE REPORTE'   => 'Año de reporte',
-  'ANIO DE REPORTE'  => 'Año de reporte',
-  'AÑO REPORTE'      => 'Año de reporte',
-  'ANIO REPORTE'     => 'Año de reporte',
-  'AÑO DEL REPORTE'  => 'Año de reporte',
-  'ANIO DEL REPORTE' => 'Año de reporte',
-  'YEAR OF REPORT'   => 'Año de reporte',
-  'YEAR REPORT'      => 'Año de reporte',
-  'YEAR_REPORT'      => 'Año de reporte',
+  'MES DE DESCARGA'=>'Mes de Descarga','AÑO DE REPORTE'=>'Año de reporte','ANIO DE REPORTE'=>'Año de reporte',
+  'AÑO REPORTE'=>'Año de reporte','ANIO REPORTE'=>'Año de reporte','AÑO DEL REPORTE'=>'Año de reporte',
+  'ANIO DEL REPORTE'=>'Año de reporte','YEAR OF REPORT'=>'Año de reporte','YEAR REPORT'=>'Año de reporte','YEAR_REPORT'=>'Año de reporte',
 ];
-
 $ph = [
-  'Mes de Descarga'=>'c_mes_descarga',
-  'Año de reporte'=>'c_ano_reporte',
-  'CEDULA'=>'c_cedula', 'INSTITUCION'=>'c_institucion', 'ANO'=>'c_ano',
-  'NUMERO_PROCEDIMIENTO'=>'c_numero_procedimiento', 'DESCR_PROCEDIMIENTO'=>'c_descr_procedimiento',
-  'LINEA'=>'c_linea', 'NRO_SICOP'=>'c_nro_sicop', 'TIPO_PROCEDIMIENTO'=>'c_tipo_procedimiento',
-  'MODALIDAD_PROCEDIMIENTO'=>'c_modalidad_procedimiento', 'fecha_rev'=>'c_fecha_rev',
-  'CEDULA_PROVEEDOR'=>'c_cedula_proveedor', 'NOMBRE_PROVEEDOR'=>'c_nombre_proveedor',
-  'PERFIL_PROV'=>'c_perfil_prov', 'CEDULA_REPRESENTANTE'=>'c_cedula_representante',
-  'REPRESENTANTE'=>'c_representante', 'OBJETO_GASTO'=>'c_objeto_gasto',
-  'MONEDA_ADJUDICADA'=>'c_moneda_adjudicada', 'MONTO_ADJU_LINEA'=>'c_monto_adju_linea',
-  'MONTO_ADJU_LINEA_CRC'=>'c_monto_adju_linea_crc', 'MONTO_ADJU_LINEA_USD'=>'c_monto_adju_linea_usd',
-  'FECHA_ADJUD_FIRME'=>'c_fecha_adjud_firme', 'FECHA_SOL_CONTRA'=>'c_fecha_sol_contra',
-  'PROD_ID'=>'c_prod_id', 'DESCR_BIEN_SERVICIO'=>'c_descr_bien_servicio', 'CANTIDAD'=>'c_cantidad',
-  'UNIDAD_MEDIDA'=>'c_unidad_medida', 'MONTO_UNITARIO'=>'c_monto_unitario',
-  'MONEDA_PRECIO_EST'=>'c_moneda_precio_est', 'FECHA_SOL_CONTRA_CL'=>'c_fecha_sol_contra_cl',
-  'PROD_ID_CL'=>'c_prod_id_cl'
+  'Mes de Descarga'=>'c_mes_descarga','Año de reporte'=>'c_ano_reporte','CEDULA'=>'c_cedula','INSTITUCION'=>'c_institucion','ANO'=>'c_ano',
+  'NUMERO_PROCEDIMIENTO'=>'c_numero_procedimiento','DESCR_PROCEDIMIENTO'=>'c_descr_procedimiento','LINEA'=>'c_linea','NRO_SICOP'=>'c_nro_sicop',
+  'TIPO_PROCEDIMIENTO'=>'c_tipo_procedimiento','MODALIDAD_PROCEDIMIENTO'=>'c_modalidad_procedimiento','fecha_rev'=>'c_fecha_rev',
+  'CEDULA_PROVEEDOR'=>'c_cedula_proveedor','NOMBRE_PROVEEDOR'=>'c_nombre_proveedor','PERFIL_PROV'=>'c_perfil_prov',
+  'CEDULA_REPRESENTANTE'=>'c_cedula_representante','REPRESENTANTE'=>'c_representante','OBJETO_GASTO'=>'c_objeto_gasto',
+  'MONEDA_ADJUDICADA'=>'c_moneda_adjudicada','MONTO_ADJU_LINEA'=>'c_monto_adju_linea','MONTO_ADJU_LINEA_CRC'=>'c_monto_adju_linea_crc',
+  'MONTO_ADJU_LINEA_USD'=>'c_monto_adju_linea_usd','FECHA_ADJUD_FIRME'=>'c_fecha_adjud_firme','FECHA_SOL_CONTRA'=>'c_fecha_sol_contra',
+  'PROD_ID'=>'c_prod_id','DESCR_BIEN_SERVICIO'=>'c_descr_bien_servicio','CANTIDAD'=>'c_cantidad','UNIDAD_MEDIDA'=>'c_unidad_medida',
+  'MONTO_UNITARIO'=>'c_monto_unitario','MONEDA_PRECIO_EST'=>'c_moneda_precio_est','FECHA_SOL_CONTRA_CL'=>'c_fecha_sol_contra_cl','PROD_ID_CL'=>'c_prod_id_cl'
 ];
+$canonByKey=[]; foreach ($canon as $c){ $canonByKey[label_key($c)]=$c; } foreach ($syn as $k=>$t){ $canonByKey[label_key($k)]=$t; }
 
-/* Diccionario headers */
-$canonByKey = [];
-foreach ($canon as $c) { $canonByKey[label_key($c)] = $c; }
-foreach ($syn as $k => $target) { $canonByKey[label_key($k)] = $target; }
-
-/* =========================================================
-   Abrir archivo y detectar delimitador
-   ========================================================= */
+/* Abrir y detectar delimitador */
 $tmp = $_FILES['archivo']['tmp_name'];
 $fh  = fopen($tmp, 'r');
 if (!$fh) { http_response_code(400); echo json_encode(['ok'=>false,'error'=>'No se pudo abrir el archivo subido'], JSON_UNESCAPED_UNICODE); exit; }
-
 $firstLineRaw = fgets($fh);
 if ($firstLineRaw === false) { fclose($fh); http_response_code(400); echo json_encode(['ok'=>false,'error'=>'Archivo vacío'], JSON_UNESCAPED_UNICODE); exit; }
 rewind($fh);
-$cands = [","=>substr_count($firstLineRaw,","), ";"=>substr_count($firstLineRaw,";"), "\t"=>substr_count($firstLineRaw,"\t"), "|"=>substr_count($firstLineRaw,"|")];
-arsort($cands); $delimiter = array_key_first($cands) ?: ","; if (($cands[$delimiter] ?? 0) === 0) $delimiter = ",";
+$cands=[","=>substr_count($firstLineRaw,","),";"=>substr_count($firstLineRaw,";"),"\t"=>substr_count($firstLineRaw,"\t"),"|"=>substr_count($firstLineRaw,"|")];
+arsort($cands); $delimiter = array_key_first($cands) ?: ","; if (($cands[$delimiter]??0)===0) $delimiter=",";
 
 /* Leer encabezados */
 $header = fgetcsv($fh, 0, $delimiter);
 if ($header === false || $header === null) { fclose($fh); http_response_code(400); echo json_encode(['ok'=>false,'error'=>'No se pudo leer la fila de encabezados'], JSON_UNESCAPED_UNICODE); exit; }
-$header = array_map('norm_header', (array)$header);
+$header = array_map('norm_header',(array)$header);
 $header_norm_join = implode('|', array_map('label_key', $header));
 
-/* Mapear encabezados */
-$map = []; $canon_set = array_fill_keys($canon, false); $en_archivo=[];
-for ($i=0; $i<count($header); $i++) {
-  $h = $header[$i]; if ($h==='') continue;
-  $key = label_key($h);
-  $hCanon = $canonByKey[$key] ?? null;
-  if ($hCanon !== null) { $map[$i]=$hCanon; $canon_set[$hCanon]=true; }
+/* Mapear */
+$map=[]; $canon_set=array_fill_keys($canon,false); $en_archivo=[];
+for($i=0;$i<count($header);$i++){
+  $h=$header[$i]; if($h==='') continue;
+  $key=label_key($h); $hCanon=$canonByKey[$key]??null;
+  if($hCanon!==null){ $map[$i]=$hCanon; $canon_set[$hCanon]=true; }
   $en_archivo[]=$h;
 }
-$faltan=[]; foreach ($canon_set as $c=>$ok) { if (!$ok && empty($optional[$c])) $faltan[]=$c; }
-if ($faltan) { fclose($fh); echo json_encode(['ok'=>false,'error'=>'Encabezados no coinciden con la tabla','faltan'=>$faltan,'en_archivo'=>$en_archivo], JSON_UNESCAPED_UNICODE); exit; }
+$faltan=[]; foreach($canon_set as $c=>$ok){ if(!$ok && empty($optional[$c])) $faltan[]=$c; }
+if ($faltan){ fclose($fh); echo json_encode(['ok'=>false,'error'=>'Encabezados no coinciden con la tabla','faltan'=>$faltan,'en_archivo'=>$en_archivo], JSON_UNESCAPED_UNICODE); exit; }
 
-/* =========================================================
-   Prep INSERT con fingerprint + import_id
-   ========================================================= */
+/* INSERT con fingerprint+import_id */
 $colsSql  = implode('","', $canon);
 $placeSql = implode(', ', array_map(fn($c)=>':'.$ph[$c], $canon));
 $sql = 'INSERT INTO public."Procedimientos Adjudicados"
@@ -333,108 +283,65 @@ $sql = 'INSERT INTO public."Procedimientos Adjudicados"
         ON CONFLICT (fingerprint) DO NOTHING';
 $stmt = $pdo->prepare($sql);
 
-/* =========================================================
-   Importar
-   ========================================================= */
+/* Importar (siempre append) */
 $import_id = uuidv4();
-$insertados=0; $saltados=0; $errores=[]; $linea=1;
-$seen = [];               // desdup dentro del archivo
-$pares_borrados = [];     // para replace: pares mes|año ya borrados
-$mesAnoVistos   = [];     // para guardar en log (resumen)
+$insertados=0; $saltados=0; $errores=[]; $linea=1; $seen=[]; $mesAnoVistos=[];
 
 $pdo->beginTransaction();
-// log start
 $pdo->prepare('INSERT INTO public.import_log(import_id, filename, mode, inserted, skipped, mes_ano, started_at)
                VALUES(:id,:fn,:md,0,0,ARRAY[]::text[], now())')
-    ->execute([':id'=>$import_id, ':fn'=>basename($name), ':md'=>$modo]);
+    ->execute([':id'=>$import_id, ':fn'=>basename($name), ':md'=>'append']);
 
 while (($row = fgetcsv($fh, 0, $delimiter)) !== false) {
   $linea++;
 
-  // Saltar vacías
-  $allEmpty = true; foreach ($row as $cell) { if (trim((string)$cell) !== '') { $allEmpty = false; break; } }
-  if ($allEmpty) continue;
+  $allEmpty=true; foreach($row as $cell){ if(trim((string)$cell)!==''){ $allEmpty=false; break; } }
+  if($allEmpty) continue;
 
-  // Saltar encabezado repetido
   $row_norm_join = implode('|', array_map('label_key', array_map('strval', $row)));
   if ($row_norm_join === $header_norm_join) continue;
 
-  // Mapear valores crudos
-  $vals = [];
-  foreach ($map as $idx=>$canonName) { $vals[$canonName] = $row[$idx] ?? null; }
-  if (!array_key_exists('Año de reporte', $vals)) $vals['Año de reporte'] = null;
+  $vals=[]; foreach($map as $idx=>$canonName){ $vals[$canonName]=$row[$idx]??null; }
+  if(!array_key_exists('Año de reporte',$vals)) $vals['Año de reporte']=null;
 
-  // Normalizar
-  $params = [];
-  foreach ($canon as $cname) {
-    $raw = $vals[$cname] ?? null;
-    switch ($cname) {
+  $params=[];
+  foreach($canon as $cname){
+    $raw=$vals[$cname]??null;
+    switch($cname){
       case 'fecha_rev':
       case 'FECHA_ADJUD_FIRME':
       case 'FECHA_SOL_CONTRA':
-      case 'FECHA_SOL_CONTRA_CL':
-        $params[':'.$ph[$cname]] = norm_date($raw); break;
-
+      case 'FECHA_SOL_CONTRA_CL': $params[':'.$ph[$cname]]=norm_date($raw); break;
       case 'MONTO_ADJU_LINEA':
       case 'MONTO_ADJU_LINEA_CRC':
       case 'MONTO_ADJU_LINEA_USD':
       case 'CANTIDAD':
-      case 'MONTO_UNITARIO':
-        $params[':'.$ph[$cname]] = norm_num($raw); break;
-
+      case 'MONTO_UNITARIO': $params[':'.$ph[$cname]]=norm_num($raw); break;
       case 'PROD_ID':
-      case 'PROD_ID_CL':
-        $params[':'.$ph[$cname]] = norm_bigint_text($raw); break;
-
-      case 'Año de reporte':
-        $val = trim((string)$raw);
-        $params[':'.$ph[$cname]] = ($val==='')?null:$val; break;
-
-      default:
-        $val = trim((string)$raw);
-        $params[':'.$ph[$cname]] = ($val==='')?null:$val; break;
+      case 'PROD_ID_CL': $params[':'.$ph[$cname]]=norm_bigint_text($raw); break;
+      case 'Año de reporte': $val=trim((string)$raw); $params[':'.$ph[$cname]]=$val===''?null:$val; break;
+      default: $val=trim((string)$raw); $params[':'.$ph[$cname]]=$val===''?null:$val; break;
     }
   }
 
-  // Reemplazar mes: ejecuta delete UNA sola vez por par mes|año visto
-  if ($modo === 'replace') {
-    $mes = (string)($params[':'.$ph['Mes de Descarga']] ?? '');
-    $ano = (string)($params[':'.$ph['Año de reporte']] ?? '');
-    $key = $mes.'|'.$ano;
-    if ($mes !== '' && $ano !== '' && empty($pares_borrados[$key])) {
-      $del = $pdo->prepare('DELETE FROM public."Procedimientos Adjudicados" WHERE "Mes de Descarga" = :m AND "Año de reporte" = :a');
-      $del->execute([':m'=>$mes, ':a'=>$ano]);
-      $pares_borrados[$key] = true;
-    }
-  }
-
-  // Fingerprint (cadena de valores normalizados en orden canónico)
-  $concat=[]; foreach ($canon as $cname) { $concat[] = (string)($params[':'.$ph[$cname]] ?? ''); }
+  $concat=[]; foreach($canon as $cname){ $concat[]=(string)($params[':'.$ph[$cname]]??''); }
   $fp = md5(implode('|', $concat));
-  if (isset($seen[$fp])) { $saltados++; continue; }
-  $seen[$fp] = true;
+  if(isset($seen[$fp])){ $saltados++; continue; }
+  $seen[$fp]=true;
 
-  // import_id + fp
-  $params[':fp'] = $fp;
-  $params[':import_id'] = $import_id;
+  $params[':fp']=$fp; $params[':import_id']=$import_id;
 
-  // Savepoint + insert
-  $sp = 'sp_'.$linea;
-  $pdo->exec("SAVEPOINT $sp");
-  try {
+  $sp='sp_'.$linea; $pdo->exec("SAVEPOINT $sp");
+  try{
     $stmt->execute($params);
-    if ($stmt->rowCount() === 1) { $insertados++; }
-    else { $saltados++; }
-  } catch (Throwable $e) {
+    if($stmt->rowCount()===1) $insertados++; else $saltados++;
+  }catch(Throwable $e){
     $pdo->exec("ROLLBACK TO SAVEPOINT $sp");
-    $saltados++;
-    if (count($errores)<1000) $errores[] = "Línea $linea: ".$e->getMessage();
+    $saltados++; if(count($errores)<1000) $errores[]="Línea $linea: ".$e->getMessage();
   }
 
-  // acumular mes-año para log
-  $mesAnoVistos[(string)($params[':'.$ph['Mes de Descarga']] ?? '').'|'.(string)($params[':'.$ph['Año de reporte']] ?? '')] = true;
+  $mesAnoVistos[(string)($params[':'.$ph['Mes de Descarga']]??'').'|'.(string)($params[':'.$ph['Año de reporte']]??'')] = true;
 }
-
 $pdo->prepare('UPDATE public.import_log
                SET inserted=:ins, skipped=:sk, mes_ano=:ma, finished_at=now()
                WHERE import_id=:id')
@@ -447,14 +354,9 @@ $pdo->prepare('UPDATE public.import_log
 $pdo->commit();
 fclose($fh);
 
-/* Respuesta */
 $debug = ob_get_contents(); ob_end_clean();
 echo json_encode([
-  'ok'=>true,
-  'import_id'=>$import_id,
-  'modo'=>$modo,
-  'insertados'=>$insertados,
-  'saltados'=>$saltados,
-  'errores'=>$errores,
+  'ok'=>true, 'modo'=>'append', 'import_id'=>$import_id,
+  'insertados'=>$insertados, 'saltados'=>$saltados, 'errores'=>$errores,
   'debug'=>$debug?trim(strip_tags($debug)):null
 ], JSON_UNESCAPED_UNICODE);
