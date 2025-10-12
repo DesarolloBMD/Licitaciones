@@ -1,29 +1,12 @@
-<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Dashboard — Seleccionar códigos (Asesoría / Imprenta)</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
-  <style>
-    :root{ --bg:#0b0f24; --panel:#fff; --ink:#0e1b2a; --brand:#0B4912; }
-    body{ background:var(--bg); color:#eaf2ff; }
-    .wrap{ max-width:1100px; margin:0 auto; padding:28px 16px 56px; }
-    .panel{ background:var(--panel); color:var(--ink); border:1px solid rgba(0,0,0,.06); border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.08); padding:16px; }
-    .muted{ color:#6b7b91; }
-    .badge-usage{ background:#eef4ff; color:#123; }
-    .btn-brand{ background:var(--brand); color:#fff; border:none; }
-    .btn-brand:hover{ filter:brightness(1.05); color:#fff; }
-  </style>
-</head>
+<!-- … deja igual el <head> y estilos que ya tienes … -->
 <body>
   <div class="wrap">
     <header class="mb-3">
       <h1 class="h5 m-0">Catálogo de códigos — Selección por lista</h1>
-      <div class="text-white-50 small">Elige un código “madre” de <strong>Asesoría</strong> o <strong>Imprenta</strong> para continuar.</div>
+      <div class="text-white-50 small">Elige un código “madre” de <strong>Asesoría</strong> o <strong>Imprenta</strong>.</div>
     </header>
 
-    <div class="panel">
+    <div class="panel mb-3">
       <div class="row g-3">
         <div class="col-12 col-lg-6">
           <label class="form-label">Asesoría</label>
@@ -43,20 +26,52 @@
       </div>
 
       <hr class="my-3">
-
       <div class="d-flex flex-wrap gap-2 align-items-center">
-        <div id="resumen" class="me-auto small">
-          Ningún código seleccionado.
-        </div>
+        <div id="resumen" class="me-auto small">Ningún código seleccionado.</div>
         <button id="btnLimpiar" class="btn btn-outline-secondary btn-sm">Limpiar selección</button>
-        <button id="btnContinuar" class="btn btn-brand btn-sm" disabled>Continuar</button>
       </div>
+    </div>
+
+    <!-- Resultados: Instituciones y Proveedores -->
+    <div id="panelResultados" class="panel d-none">
+      <h2 class="h6 mb-3">Resultados para <span id="selCodigo" class="text-primary"></span></h2>
+
+      <div class="row g-3">
+        <div class="col-12 col-lg-6">
+          <div class="card border-0 shadow-sm">
+            <div class="card-body">
+              <h3 class="h6 mb-2">Instituciones</h3>
+              <div class="table-responsive" style="max-height:380px; overflow:auto;">
+                <table class="table table-sm">
+                  <thead><tr><th>Institución</th><th class="text-end">Total</th></tr></thead>
+                  <tbody id="tbInstituciones"><tr><td colspan="2" class="text-muted">—</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-lg-6">
+          <div class="card border-0 shadow-sm">
+            <div class="card-body">
+              <h3 class="h6 mb-2">Proveedores</h3>
+              <div class="table-responsive" style="max-height:380px; overflow:auto;">
+                <table class="table table-sm">
+                  <thead><tr><th>Proveedor</th><th>Cédula</th><th class="text-end">Total</th></tr></thead>
+                  <tbody id="tbProveedores"><tr><td colspan="3" class="text-muted">—</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
 <script>
   const API = 'api/dashboard_codigos.php';
-  const $  = (s,d=document)=>d.querySelector(s);
+  const $ = (s,d=document)=>d.querySelector(s);
 
   const selA = $('#selAsesoria');
   const selI = $('#selImprenta');
@@ -64,107 +79,101 @@
   const infoI= $('#infoImprenta');
   const resumen = $('#resumen');
   const btnLimpiar = $('#btnLimpiar');
-  const btnContinuar = $('#btnContinuar');
 
-  let dataA = []; // asesoría
-  let dataI = []; // imprenta
-  let selected = null; // { tipo, codigo, descripcion, usage }
+  const panelRes = $('#panelResultados');
+  const selCodigoLbl = $('#selCodigo');
+  const tbIns = $('#tbInstituciones');
+  const tbProv = $('#tbProveedores');
 
-  function esc(s){ return (s??'').toString().replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+  let dataA=[], dataI=[];
+  let selected=null;
+
+  function esc(s){ return (s??'').toString().replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&gt;','>':'&gt;'}[m])); }
 
   async function fetchList(tipo){
-    const url = `${API}?accion=list&tipos=${encodeURIComponent(tipo)}&limit=2000`;
-    const r = await fetch(url, {cache:'no-store'});
-    const raw = await r.text();
-    let j; try{ j = JSON.parse(raw); } catch{ throw new Error('La API no devolvió JSON válido'); }
-    if(!j.ok) throw new Error(j.error || 'Error al cargar');
-    const items = (j.items||[]).map(x=>({
+    const r = await fetch(`${API}?accion=list&tipos=${encodeURIComponent(tipo)}&limit=2000`, {cache:'no-store'});
+    const raw = await r.text(); let j; try{ j=JSON.parse(raw); }catch{ throw new Error('API no devolvió JSON'); }
+    if(!j.ok) throw new Error(j.error||'Error al cargar');
+    return (j.items||[]).map(x=>({
       tipo: x['Tipo de Clasificación'],
       codigo: x['Codigo de Clasificación'],
       descripcion: x['Descripción de Clasificación'],
       usage: x['usage_count'] ?? 0
     }));
-    return items;
   }
-
-  function fillSelect(selectEl, items){
-    if(!items.length){
-      selectEl.innerHTML = `<option value="">(Sin códigos)</option>`;
-      return;
-    }
-    const opts = ['<option value="">— Seleccione un código —</option>'].concat(
-      items.map(it => {
-        const label = `${it.codigo} — ${it.descripcion ?? 'Sin descripción'} (uso: ${it.usage})`;
-        return `<option value="${esc(it.codigo)}" data-desc="${esc(it.descripcion||'')}" data-usage="${it.usage}">${esc(label)}</option>`;
-      })
-    );
-    selectEl.innerHTML = opts.join('');
+  function fillSelect(sel, items){
+    if(!items.length){ sel.innerHTML = `<option value="">(Sin códigos)</option>`; return; }
+    sel.innerHTML = ['<option value="">— Seleccione un código —</option>'].concat(
+      items.map(it=>`<option value="${esc(it.codigo)}" data-desc="${esc(it.descripcion||'')}" data-usage="${it.usage}">${esc(it.codigo)} — ${esc(it.descripcion||'')}</option>`)
+    ).join('');
   }
-
   function updateInfo(){
-    const aCount = dataA.length, iCount = dataI.length;
-    infoA.textContent = aCount ? `${aCount} códigos de Asesoría` : 'Sin datos';
-    infoI.textContent = iCount ? `${iCount} códigos de Imprenta` : 'Sin datos';
+    infoA.textContent = dataA.length ? `${dataA.length} códigos de Asesoría` : 'Sin datos';
+    infoI.textContent = dataI.length ? `${dataI.length} códigos de Imprenta` : 'Sin datos';
+  }
+  function setSelected(tipo, codigo, desc){
+    if(!codigo){ selected=null; resumen.textContent='Ningún código seleccionado.'; panelRes.classList.add('d-none'); return; }
+    selected = { tipo, codigo, desc };
+    resumen.innerHTML = `Seleccionado: <strong>${esc(codigo)}</strong> — ${esc(desc||'')} <span class="text-muted ms-2">(${esc(tipo)})</span>`;
+    loadInsProv(codigo);
   }
 
-  function setSelected(tipo, codigo, desc, usage){
-    if(!codigo){
-      selected = null;
-      resumen.textContent = 'Ningún código seleccionado.';
-      btnContinuar.disabled = true;
-      return;
+  // Cargar instituciones y proveedores
+  async function loadInsProv(codigo){
+    panelRes.classList.remove('d-none');
+    selCodigoLbl.textContent = codigo;
+    tbIns.innerHTML = `<tr><td colspan="2" class="text-muted">Cargando…</td></tr>`;
+    tbProv.innerHTML = `<tr><td colspan="3" class="text-muted">Cargando…</td></tr>`;
+
+    try{
+      const r = await fetch(`${API}?accion=insprov&codigo=${encodeURIComponent(codigo)}`, {cache:'no-store'});
+      const raw = await r.text(); let j; try{ j=JSON.parse(raw); }catch{ throw new Error('API no devolvió JSON'); }
+      if(!j.ok) throw new Error(j.error||'Error');
+
+      // Instituciones
+      if(!j.instituciones?.length){
+        tbIns.innerHTML = `<tr><td colspan="2" class="text-muted">Sin datos</td></tr>`;
+      }else{
+        tbIns.innerHTML = j.instituciones.map(x=>`<tr><td>${esc(x.institucion)}</td><td class="text-end">${x.total}</td></tr>`).join('');
+      }
+      // Proveedores
+      if(!j.proveedores?.length){
+        tbProv.innerHTML = `<tr><td colspan="3" class="text-muted">Sin datos</td></tr>`;
+      }else{
+        tbProv.innerHTML = j.proveedores.map(x=>`<tr><td>${esc(x.proveedor)}</td><td>${esc(x.cedula||'')}</td><td class="text-end">${x.total}</td></tr>`).join('');
+      }
+    }catch(err){
+      tbIns.innerHTML = `<tr><td colspan="2" class="text-danger">Error: ${esc(err.message||String(err))}</td></tr>`;
+      tbProv.innerHTML = `<tr><td colspan="3" class="text-danger">Error: ${esc(err.message||String(err))}</td></tr>`;
     }
-    selected = { tipo, codigo, descripcion: desc, usage };
-    resumen.innerHTML = `Seleccionado: <strong>${esc(codigo)}</strong> — ${esc(desc || 'Sin descripción')} <span class="badge badge-usage ms-1">uso: ${usage ?? 0}</span> <span class="ms-2 text-muted">(${esc(tipo)})</span>`;
-    btnContinuar.disabled = false;
   }
 
-  // Eventos de selección
+  // Eventos
   selA.addEventListener('change', ()=>{
     if(selA.value){
-      // limpiamos la otra
       selI.value = '';
       const opt = selA.options[selA.selectedIndex];
-      setSelected('Asesoría', selA.value, opt?.dataset?.desc, Number(opt?.dataset?.usage||0));
-    }else{
-      setSelected(null, null, null, null);
-    }
+      setSelected('Asesoría', selA.value, opt?.dataset?.desc||'');
+    }else setSelected(null,null,null);
   });
   selI.addEventListener('change', ()=>{
     if(selI.value){
       selA.value = '';
       const opt = selI.options[selI.selectedIndex];
-      setSelected('Imprenta', selI.value, opt?.dataset?.desc, Number(opt?.dataset?.usage||0));
-    }else{
-      setSelected(null, null, null, null);
-    }
+      setSelected('Imprenta', selI.value, opt?.dataset?.desc||'');
+    }else setSelected(null,null,null);
   });
-
-  btnLimpiar.addEventListener('click', ()=>{
-    selA.value = '';
-    selI.value = '';
-    setSelected(null, null, null, null);
-  });
-
-  btnContinuar.addEventListener('click', ()=>{
-    if(!selected) return;
-    // Aquí luego llamarás a tu endpoint de métricas/tabla con selected.codigo y selected.tipo
-    alert(`Continuar con: ${selected.tipo} — ${selected.codigo}`);
-  });
+  $('#btnLimpiar').addEventListener('click', ()=>{ selA.value=''; selI.value=''; setSelected(null,null,null); });
 
   // Carga inicial
   (async function init(){
     try{
-      [dataA, dataI] = await Promise.all([ fetchList('Asesoría'), fetchList('Imprenta') ]);
-      fillSelect(selA, dataA);
-      fillSelect(selI, dataI);
-      updateInfo();
+      [dataA, dataI] = await Promise.all([fetchList('Asesoría'), fetchList('Imprenta')]);
+      fillSelect(selA, dataA); fillSelect(selI, dataI); updateInfo();
     }catch(err){
-      fillSelect(selA, []);
-      fillSelect(selI, []);
-      infoA.textContent = 'Error al cargar.';
-      infoI.textContent = 'Error al cargar.';
-      resumen.textContent = `⚠ ${err.message || String(err)}`;
+      fillSelect(selA, []); fillSelect(selI, []);
+      infoA.textContent='Error al cargar.'; infoI.textContent='Error al cargar.';
+      resumen.textContent=`⚠ ${err.message||String(err)}`;
     }
   })();
 </script>
