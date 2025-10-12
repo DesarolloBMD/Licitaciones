@@ -62,12 +62,13 @@ if ($limit < 1)   $limit = 1;
 if ($limit > 2000)$limit = 2000;
 if ($offset < 0)  $offset = 0;
 
-// Query (LEFT JOIN con uso en Procedimientos)
+// SQL: calcular codigo_madre desde PROD_ID (CAST a texto) para evitar depender de una columna inexistente
 $sql = '
   WITH usage AS (
-    SELECT p.codigo_madre AS codigo, COUNT(*)::INT AS usage_count
+    SELECT LEFT( ("PROD_ID")::text, 8 ) AS codigo,
+           COUNT(*)::INT AS usage_count
     FROM public."Procedimientos Adjudicados" p
-    WHERE p.codigo_madre IS NOT NULL AND p.codigo_madre <> \'\'
+    WHERE ("PROD_ID")::text <> \'\'
     GROUP BY 1
   )
   SELECT
@@ -102,4 +103,11 @@ $stmt->execute();
 $rows = $stmt->fetchAll();
 
 $debug = ob_get_contents(); ob_end_clean();
-echo json_encode(['ok'=>true,'items'=>$rows,'limit'=>$limit,'offset'=>$offset,'count'=>count($rows),'debug'=>$debug?trim(strip_tags($debug)):null], JSON_UNESCAPED_UNICODE);
+echo json_encode([
+  'ok'=>true,
+  'items'=>$rows,
+  'limit'=>$limit,
+  'offset'=>$offset,
+  'count'=>count($rows),
+  'debug'=>$debug?trim(strip_tags($debug)):null
+], JSON_UNESCAPED_UNICODE);
