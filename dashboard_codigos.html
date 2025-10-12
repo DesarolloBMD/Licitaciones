@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Dashboard — Códigos madre (Asesoría / Imprenta)</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <style>
+    body{background:#0b0f24;color:#eaf2ff}
+    .glass{background:#fff;border:1px solid rgba(255,255,255,.06);border-radius:16px;color:#0e1b2a}
+    .list-hover .list-group-item{cursor:pointer}
+    .kpi{border-radius:14px;background:#f7f9fc}
+    .badge-soft{background:#eef4ff;color:#355}
+  </style>
+</head>
+<body class="p-3 p-lg-5">
+<div class="container-fluid">
+  <div class="mb-4 d-flex align-items-center gap-3">
+    <div class="fs-5">Dashboard — <span class="text-success">Códigos madre</span> (Asesoría / Imprenta)</div>
+    <small id="timer" class="text-white-50">⏱ 0.00 s</small>
+  </div>
+
+  <div class="row g-3">
+    <!-- Lado izquierdo: catálogo -->
+    <div class="col-12 col-lg-4">
+      <div class="glass p-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="fw-semibold">Catálogo filtrado</div>
+          <span class="badge badge-soft" id="catalogoCount">0</span>
+        </div>
+        <input id="q" class="form-control form-control-sm mb-2" placeholder="Buscar código o descripción…"/>
+        <div class="list-group list-hover" id="catalogo" style="max-height:60vh;overflow:auto">
+          <div class="list-group-item">Cargando catálogo…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lado derecho: resultados -->
+    <div class="col-12 col-lg-8">
+      <div class="glass p-3 mb-3">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <div class="small text-muted">Código seleccionado</div>
+            <div class="h5 m-0"><span id="selCodigo">—</span> <span id="selDesc" class="text-muted fs-6"></span></div>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-light text-dark" id="btnReload">Actualizar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-6 col-md-4">
+          <div class="kpi p-3">
+            <div class="small text-muted">Registros</div>
+            <div class="h4 m-0" id="k_total_rows">0</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-4">
+          <div class="kpi p-3">
+            <div class="small text-muted">Cantidad total</div>
+            <div class="h4 m-0" id="k_total_qty">0</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-4">
+          <div class="kpi p-3">
+            <div class="small text-muted">Monto adjudicado CRC</div>
+            <div class="h4 m-0" id="k_total_crc">₡0</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-4">
+          <div class="kpi p-3">
+            <div class="small text-muted">Monto adjudicado USD</div>
+            <div class="h4 m-0" id="k_total_usd">$0</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-4">
+          <div class="kpi p-3">
+            <div class="small text-muted">Instituciones</div>
+            <div class="h4 m-0" id="k_inst">0</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-4">
+          <div class="kpi p-3">
+            <div class="small text-muted">Proveedores</div>
+            <div class="h4 m-0" id="k_prov">0</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass p-3 mb-3">
+        <div class="fw-semibold mb-2">Serie por Mes de Descarga</div>
+        <canvas id="chartMes"></canvas>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-12 col-xl-6">
+          <div class="glass p-3">
+            <div class="fw-semibold mb-2">Top Proveedores (CRC)</div>
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead><tr><th>Proveedor</th><th class="text-end">Reg.</th><th class="text-end">CRC</th><th class="text-end">USD</th></tr></thead>
+                <tbody id="tbProv"><tr><td colspan="4">—</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-xl-6">
+          <div class="glass p-3">
+            <div class="fw-semibold mb-2">Top Instituciones (CRC)</div>
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead><tr><th>Institución</th><th class="text-end">Reg.</th><th class="text-end">CRC</th><th class="text-end">USD</th></tr></thead>
+                <tbody id="tbInst"><tr><td colspan="4">—</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass p-3 mt-3">
+        <div class="fw-semibold mb-2">Más recientes</div>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead>
+              <tr><th>Mes</th><th>Institución</th><th>Proveedor</th><th>Descripción</th><th class="text-end">Cant</th><th class="text-end">CRC</th><th class="text-end">USD</th></tr>
+            </thead>
+            <tbody id="tbRecent"><tr><td colspan="7">—</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+const API = 'api/dashboard_codigos.php';
+const $ = (s,d=document)=>d.querySelector(s);
+const fmt = new Intl.NumberFormat('es-CR');
+const moneyCRC = v => '₡'+fmt.format(Math.round(v||0));
+const moneyUSD = v => '$'+fmt.format(Math.round(v||0));
+let chartMes;
+
+/* ——— Cronómetro ——— */
+let t0=0; const tick=()=>{ if(!t0) return; const s=((performance.now()-t0)/1000).toFixed(2); $('#timer').textContent='⏱ '+s+' s'; requestAnimationFrame(tick); };
+
+/* ——— Cargar catálogo ——— */
+let catalogo = [];
+async function loadCatalogo(){
+  const r = await fetch(API+'?accion=catalogo'); const j = await r.json();
+  if(!j.ok){ $('#catalogo').innerHTML='<div class="list-group-item text-danger">Error cargando catálogo</div>'; return; }
+  catalogo = j.rows || [];
+  $('#catalogoCount').textContent = catalogo.length;
+  renderCatalogo();
+}
+function renderCatalogo(){
+  const q = ($('#q').value||'').toLowerCase();
+  const rows = catalogo.filter(x =>
+    x.codigo.toLowerCase().includes(q) || (x.descripcion||'').toLowerCase().includes(q)
+  );
+  if(!rows.length){ $('#catalogo').innerHTML='<div class="list-group-item">Sin coincidencias.</div>'; return; }
+  $('#catalogo').innerHTML = rows.map(x=>`
+    <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+            data-codigo="${x.codigo}" data-desc="${escapeHtml(x.descripcion||'')}">
+      <span><strong>${x.codigo}</strong> — ${escapeHtml(x.descripcion||'')}</span>
+      <span class="badge bg-light text-dark">${x.total_pa}</span>
+    </button>
+  `).join('');
+}
+$('#q').addEventListener('input', renderCatalogo);
+$('#catalogo').addEventListener('click', e=>{
+  const btn = e.target.closest('button[data-codigo]'); if(!btn) return;
+  const cod = btn.getAttribute('data-codigo'); const desc = btn.getAttribute('data-desc');
+  selectCodigo(cod, desc);
+});
+function escapeHtml(s){ return (s??'').toString().replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+
+/* ——— Selección y carga de stats ——— */
+async function selectCodigo(codigo, desc){
+  $('#selCodigo').textContent = codigo || '—';
+  $('#selDesc').textContent = desc ? ' — '+desc : '';
+  await loadStats(codigo);
+}
+async function loadStats(codigo){
+  if(!codigo) return;
+  t0 = performance.now(); requestAnimationFrame(tick);
+  $('#btnReload').disabled = true;
+
+  const r = await fetch(API+'?accion=stats&codigo='+encodeURIComponent(codigo));
+  const j = await r.json();
+
+  $('#btnReload').disabled = false; t0=0; $('#timer').textContent='⏱ 0.00 s';
+
+  if(!j.ok){ alert('Error: '+(j.error||'desconocido')); return; }
+
+  // KPIs
+  const S = j.summary || {};
+  $('#k_total_rows').textContent = (S.total_rows ?? 0);
+  $('#k_total_qty').textContent  = fmt.format(Math.round(S.total_qty||0));
+  $('#k_total_crc').textContent  = moneyCRC(S.total_crc||0);
+  $('#k_total_usd').textContent  = moneyUSD(S.total_usd||0);
+  $('#k_inst').textContent       = (S.instituciones ?? 0);
+  $('#k_prov').textContent       = (S.proveedores ?? 0);
+
+  // Top Proveedores
+  const P = j.top_proveedores || [];
+  $('#tbProv').innerHTML = P.length? P.map(r=>`
+    <tr>
+      <td>${escapeHtml(r.proveedor||'')}</td>
+      <td class="text-end">${r.n||0}</td>
+      <td class="text-end">${moneyCRC(r.crc||0)}</td>
+      <td class="text-end">${moneyUSD(r.usd||0)}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="4" class="text-muted">Sin datos.</td></tr>';
+
+  // Top Instituciones
+  const I = j.top_instituciones || [];
+  $('#tbInst').innerHTML = I.length? I.map(r=>`
+    <tr>
+      <td>${escapeHtml(r.institucion||'')}</td>
+      <td class="text-end">${r.n||0}</td>
+      <td class="text-end">${moneyCRC(r.crc||0)}</td>
+      <td class="text-end">${moneyUSD(r.usd||0)}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="4" class="text-muted">Sin datos.</td></tr>';
+
+  // Serie mensual
+  const M = j.serie || [];
+  const labels = M.map(r=>r.mes);
+  const dataCRC = M.map(r=>Math.round(r.crc||0));
+  const dataUSD = M.map(r=>Math.round(r.usd||0));
+
+  if (chartMes) chartMes.destroy();
+  const ctx = document.getElementById('chartMes').getContext('2d');
+  chartMes = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label:'CRC', data:dataCRC },
+        { label:'USD', data:dataUSD }
+      ]
+    },
+    options:{
+      responsive:true,
+      scales:{ y:{ beginAtZero:true } }
+    }
+  });
+
+  // Recientes
+  const R = j.recientes || [];
+  $('#tbRecent').innerHTML = R.length? R.map(r=>`
+    <tr>
+      <td>${escapeHtml(r.mes_descarga||'')}</td>
+      <td>${escapeHtml(r.institucion||'')}</td>
+      <td>${escapeHtml(r.proveedor||'')}</td>
+      <td>${escapeHtml(r.descripcion||'')}</td>
+      <td class="text-end">${r.cantidad??''}</td>
+      <td class="text-end">${moneyCRC(r.monto_crc||0)}</td>
+      <td class="text-end">${moneyUSD(r.monto_usd||0)}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="7" class="text-muted">Sin datos.</td></tr>';
+}
+
+$('#btnReload').addEventListener('click', ()=>{
+  const cod = $('#selCodigo').textContent.trim();
+  if(cod && cod !== '—') loadStats(cod);
+});
+
+// Init
+loadCatalogo();
+</script>
+</body>
+</html>
