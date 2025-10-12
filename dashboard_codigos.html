@@ -3,331 +3,170 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Dashboard — Seleccionar códigos del catálogo</title>
-
+  <title>Dashboard — Seleccionar códigos (Asesoría / Imprenta)</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
-
   <style>
-    :root{
-      --bg:#0b0f24;
-      --panel:#ffffff;
-      --ink:#0e1b2a;
-      --muted:#6b7b91;
-      --brand:#0B4912;
-      --ring:#b7ffd1;
-    }
-    html,body{height:100%}
-    body{background:var(--bg); color:#eaf2ff; margin:0;}
-    .wrap{max-width:1200px; margin:0 auto; padding:28px 16px 72px;}
-
-    .header h1{font-size:1.25rem; margin:0;}
-    .sub{color:rgba(234,242,255,.65); font-size:.95rem}
-
-    .panel{
-      background:var(--panel); color:var(--ink);
-      border:1px solid rgba(0,0,0,.06);
-      border-radius:18px; box-shadow:0 10px 30px rgba(0,0,0,.08);
-      padding:16px;
-    }
-
-    /* Chips de filtro */
-    .chips{display:flex; gap:8px; flex-wrap:wrap}
-    .chip{
-      border:1px solid #e5e7eb; background:#fff; color:#0e1b2a;
-      padding:6px 10px; border-radius:999px; font-weight:600; font-size:.9rem;
-      cursor:pointer; user-select:none;
-    }
-    .chip.active{ border-color: var(--brand); box-shadow:0 0 0 3px var(--ring); }
-
-    /* Barra de herramientas */
-    .toolbar{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap}
-    .muted{color:var(--muted)}
-
-    .sorter .btn{
-      --bs-btn-border-color:#e5e7eb;
-      --bs-btn-color:#0e1b2a;
-      --bs-btn-bg:#fff;
-      --bs-btn-hover-border-color:#cbd5e1;
-      --bs-btn-hover-bg:#f8fafc;
-      --bs-btn-active-bg:#e2e8f0;
-    }
-
-    /* Grid de tarjetas */
-    .grid{
-      display:grid; gap:12px;
-      grid-template-columns: repeat( auto-fill, minmax(240px, 1fr) );
-      margin-top:12px;
-    }
-    .card-code{
-      background:#fff; color:var(--ink);
-      border:1px solid rgba(0,0,0,.06);
-      border-radius:14px; padding:12px 12px 14px;
-      display:flex; gap:8px; flex-direction:column;
-      cursor:pointer; transition: transform .08s ease, box-shadow .08s ease, border-color .08s ease;
-      position:relative; outline:none;
-      min-height:120px;
-    }
-    .card-code:hover{ transform: translateY(-1px); box-shadow:0 6px 18px rgba(0,0,0,.08); }
-    .card-code.selected{
-      border-color: var(--brand);
-      box-shadow: 0 0 0 3px var(--ring), 0 8px 24px rgba(11,73,18,.15);
-    }
-
-    .badge-usage{ background:#f1f5f9; color:#0e1b2a; }
-    .code{
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
-      font-weight:800; letter-spacing:.2px; font-size:1.05rem;
-    }
-    .desc{color:#31465a; min-height:2.6em}
-    .tipo{font-size:.8rem; color:#4b5d72}
-
-    /* Barra de selección */
-    .selection-bar{
-      position: sticky; bottom: 16px; z-index: 50; margin-top:16px; display:none;
-    }
-    .selection-bar.show{display:block;}
-    .selection-panel{
-      background:#0f1a2c; color:#eaf2ff; border:1px solid rgba(255,255,255,.08);
-      border-radius:14px; padding:10px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px;
-      box-shadow: 0 12px 30px rgba(0,0,0,.25);
-    }
-    .btn-brand{
-      background:var(--brand); color:#fff; border:none; border-radius:10px;
-      padding:8px 12px; font-weight:700;
-    }
-    .btn-brand:hover{ filter:brightness(1.05); }
-
-    /* Empty & skeletons */
-    .empty{ text-align:center; color:var(--muted); padding:28px 6px; }
-    .skeleton{
-      height:120px; border-radius:14px; background:linear-gradient(90deg,#edf2f7, #f8fafc, #edf2f7);
-      background-size:200% 100%; animation: shimmer 1s infinite linear;
-    }
-    @keyframes shimmer{ 0%{background-position:200% 0} 100%{background-position:-200% 0} }
-
-    /* Botón cargar más */
-    .loadmore-wrap{display:flex; justify-content:center; margin-top:10px}
+    :root{ --bg:#0b0f24; --panel:#fff; --ink:#0e1b2a; --brand:#0B4912; }
+    body{ background:var(--bg); color:#eaf2ff; }
+    .wrap{ max-width:1100px; margin:0 auto; padding:28px 16px 56px; }
+    .panel{ background:var(--panel); color:var(--ink); border:1px solid rgba(0,0,0,.06); border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.08); padding:16px; }
+    .muted{ color:#6b7b91; }
+    .badge-usage{ background:#eef4ff; color:#123; }
+    .btn-brand{ background:var(--brand); color:#fff; border:none; }
+    .btn-brand:hover{ filter:brightness(1.05); color:#fff; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="header mb-3">
-      <h1>Catálogo de códigos</h1>
-      <div class="sub">Haz clic para seleccionar códigos “madre” (sin buscador, explora visualmente).</div>
-    </div>
+    <header class="mb-3">
+      <h1 class="h5 m-0">Catálogo de códigos — Selección por lista</h1>
+      <div class="text-white-50 small">Elige un código “madre” de <strong>Asesoría</strong> o <strong>Imprenta</strong> para continuar.</div>
+    </header>
 
     <div class="panel">
-      <div class="toolbar mb-2">
-        <div class="chips" id="chips">
-          <span class="chip active" data-filter="todos">Todos</span>
-          <span class="chip" data-filter="Asesoría">Asesoría</span>
-          <span class="chip" data-filter="Imprenta">Imprenta</span>
+      <div class="row g-3">
+        <div class="col-12 col-lg-6">
+          <label class="form-label">Asesoría</label>
+          <select id="selAsesoria" class="form-select">
+            <option value="">Cargando…</option>
+          </select>
+          <div class="small muted mt-1" id="infoAsesoria">—</div>
         </div>
-        <div class="sorter">
-          <div class="btn-group btn-group-sm" role="group" aria-label="Ordenar">
-            <button class="btn btn-outline-secondary" id="ordUso">Ordenar por uso</button>
-            <button class="btn btn-outline-secondary" id="ordCodigo">Ordenar por código</button>
-          </div>
+
+        <div class="col-12 col-lg-6">
+          <label class="form-label">Imprenta</label>
+          <select id="selImprenta" class="form-select">
+            <option value="">Cargando…</option>
+          </select>
+          <div class="small muted mt-1" id="infoImprenta">—</div>
         </div>
       </div>
 
-      <div id="grid" class="grid" aria-live="polite">
-        <!-- skeletons iniciales -->
-        <div class="skeleton"></div>
-        <div class="skeleton"></div>
-        <div class="skeleton"></div>
-        <div class="skeleton"></div>
-        <div class="skeleton"></div>
-        <div class="skeleton"></div>
-      </div>
+      <hr class="my-3">
 
-      <div class="loadmore-wrap">
-        <button id="btnMas" class="btn btn-outline-secondary btn-sm d-none">Mostrar más</button>
-      </div>
-
-      <div id="empty" class="empty d-none">Sin resultados para este filtro.</div>
-
-      <div id="selBar" class="selection-bar">
-        <div class="selection-panel">
-          <div><strong id="selCount">0</strong> código(s) seleccionados</div>
-          <div class="d-flex gap-2">
-            <button id="btnQuitarSel" class="btn btn-outline-light btn-sm">Quitar selección</button>
-            <button id="btnContinuar" class="btn-brand">Continuar</button>
-          </div>
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <div id="resumen" class="me-auto small">
+          Ningún código seleccionado.
         </div>
+        <button id="btnLimpiar" class="btn btn-outline-secondary btn-sm">Limpiar selección</button>
+        <button id="btnContinuar" class="btn btn-brand btn-sm" disabled>Continuar</button>
       </div>
     </div>
   </div>
 
 <script>
-  // Ajusta si usas otro endpoint:
-  const API_LIST = 'api/dashboard_codigos.php?tipos=Asesoría,Imprenta&limit=1000';
+  const API = 'api/dashboard_codigos.php';
+  const $  = (s,d=document)=>d.querySelector(s);
 
-  const state = {
-    all: [],        // todo lo cargado del endpoint
-    working: [],    // después de filtrar por tipo
-    page: 0,
-    pageSize: 36,
-    selected: new Set(),
-    filter: 'todos',    // 'todos' | 'Asesoría' | 'Imprenta'
-    sortBy: 'uso'       // 'uso' | 'codigo'
-  };
-
-  const $ = (s, d=document)=>d.querySelector(s);
-  const $$ = (s, d=document)=>Array.from(d.querySelectorAll(s));
-  const grid = $('#grid');
-  const empty = $('#empty');
-  const btnMas = $('#btnMas');
-  const selBar = $('#selBar');
-  const selCount = $('#selCount');
-  const btnQuitarSel = $('#btnQuitarSel');
+  const selA = $('#selAsesoria');
+  const selI = $('#selImprenta');
+  const infoA= $('#infoAsesoria');
+  const infoI= $('#infoImprenta');
+  const resumen = $('#resumen');
+  const btnLimpiar = $('#btnLimpiar');
   const btnContinuar = $('#btnContinuar');
+
+  let dataA = []; // asesoría
+  let dataI = []; // imprenta
+  let selected = null; // { tipo, codigo, descripcion, usage }
 
   function esc(s){ return (s??'').toString().replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
 
-  function normalizeItem(raw){
-    return {
-      tipo: raw['Tipo de Clasificación'] ?? raw.tipo ?? '',
-      codigo: (raw['Codigo de Clasificación'] ?? raw.codigo ?? '').toString(),
-      descripcion: raw['Descripción de Clasificación'] ?? raw.descripcion ?? '',
-      usage: Number(raw.usage_count ?? raw.usage ?? 0) || 0
-    };
+  async function fetchList(tipo){
+    const url = `${API}?accion=list&tipos=${encodeURIComponent(tipo)}&limit=2000`;
+    const r = await fetch(url, {cache:'no-store'});
+    const raw = await r.text();
+    let j; try{ j = JSON.parse(raw); } catch{ throw new Error('La API no devolvió JSON válido'); }
+    if(!j.ok) throw new Error(j.error || 'Error al cargar');
+    const items = (j.items||[]).map(x=>({
+      tipo: x['Tipo de Clasificación'],
+      codigo: x['Codigo de Clasificación'],
+      descripcion: x['Descripción de Clasificación'],
+      usage: x['usage_count'] ?? 0
+    }));
+    return items;
   }
 
-  function applyFilterAndSort(){
-    // Filtro por tipo
-    state.working = state.all.filter(it=>{
-      if (state.filter === 'todos') return true;
-      return it.tipo === state.filter;
-    });
-    // Orden
-    if (state.sortBy === 'uso') {
-      state.working.sort((a,b)=> b.usage - a.usage || a.codigo.localeCompare(b.codigo));
-    } else {
-      state.working.sort((a,b)=> a.codigo.localeCompare(b.codigo));
-    }
-    // Reinicia paginación
-    state.page = 0;
-  }
-
-  function renderPage(){
-    const start = state.page * state.pageSize;
-    const slice = state.working.slice(start, start + state.pageSize);
-
-    if (state.page === 0) {
-      grid.innerHTML = '';
-    }
-    if (slice.length === 0 && state.page === 0) {
-      empty.classList.remove('d-none');
-      btnMas.classList.add('d-none');
+  function fillSelect(selectEl, items){
+    if(!items.length){
+      selectEl.innerHTML = `<option value="">(Sin códigos)</option>`;
       return;
     }
-    empty.classList.add('d-none');
-
-    const html = slice.map(it=>{
-      const isSel = state.selected.has(it.codigo);
-      return `
-        <button type="button" class="card-code ${isSel?'selected':''}"
-                data-codigo="${esc(it.codigo)}" data-tipo="${esc(it.tipo)}" aria-pressed="${isSel}">
-          <div class="d-flex justify-content-between align-items-start">
-            <span class="code">${esc(it.codigo)}</span>
-            <span class="badge rounded-pill badge-usage">${it.usage}</span>
-          </div>
-          <div class="desc">${esc(it.descripcion || '—')}</div>
-          <div class="tipo">${esc(it.tipo || '')}</div>
-        </button>`;
-    }).join('');
-    grid.insertAdjacentHTML('beforeend', html);
-
-    // Bind de la página agregada
-    $$('.card-code', grid).slice(-slice.length).forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const codigo = btn.getAttribute('data-codigo');
-        if(state.selected.has(codigo)){
-          state.selected.delete(codigo);
-          btn.classList.remove('selected');
-        } else {
-          state.selected.add(codigo);
-          btn.classList.add('selected');
-        }
-        updateSelectionBar();
-      });
-    });
-
-    // Mostrar / ocultar “Mostrar más”
-    const hasMore = (start + slice.length) < state.working.length;
-    btnMas.classList.toggle('d-none', !hasMore);
+    const opts = ['<option value="">— Seleccione un código —</option>'].concat(
+      items.map(it => {
+        const label = `${it.codigo} — ${it.descripcion ?? 'Sin descripción'} (uso: ${it.usage})`;
+        return `<option value="${esc(it.codigo)}" data-desc="${esc(it.descripcion||'')}" data-usage="${it.usage}">${esc(label)}</option>`;
+      })
+    );
+    selectEl.innerHTML = opts.join('');
   }
 
-  function updateSelectionBar(){
-    const n = state.selected.size;
-    selCount.textContent = n;
-    selBar.classList.toggle('show', n>0);
+  function updateInfo(){
+    const aCount = dataA.length, iCount = dataI.length;
+    infoA.textContent = aCount ? `${aCount} códigos de Asesoría` : 'Sin datos';
+    infoI.textContent = iCount ? `${iCount} códigos de Imprenta` : 'Sin datos';
   }
 
-  async function load(){
-    try{
-      const r = await fetch(API_LIST, {cache:'no-store'});
-      const raw = await r.json();
-      if(!raw.ok) throw new Error(raw.error || 'No se pudo cargar el catálogo');
-      const items = Array.isArray(raw.items) ? raw.items : (raw.data || []);
-      state.all = items.map(normalizeItem).filter(x=>x.codigo);
-      applyFilterAndSort();
-      renderPage();
-    }catch(err){
-      grid.innerHTML = '';
-      empty.innerHTML = 'No se pudo cargar el catálogo.<br><small class="muted">'+esc(err.message||String(err))+'</small>';
-      empty.classList.remove('d-none');
+  function setSelected(tipo, codigo, desc, usage){
+    if(!codigo){
+      selected = null;
+      resumen.textContent = 'Ningún código seleccionado.';
+      btnContinuar.disabled = true;
+      return;
     }
+    selected = { tipo, codigo, descripcion: desc, usage };
+    resumen.innerHTML = `Seleccionado: <strong>${esc(codigo)}</strong> — ${esc(desc || 'Sin descripción')} <span class="badge badge-usage ms-1">uso: ${usage ?? 0}</span> <span class="ms-2 text-muted">(${esc(tipo)})</span>`;
+    btnContinuar.disabled = false;
   }
 
-  // Filtros por chips
-  $('#chips').addEventListener('click', (e)=>{
-    const chip = e.target.closest('.chip');
-    if(!chip) return;
-    $$('.chip', $('#chips')).forEach(c=>c.classList.remove('active'));
-    chip.classList.add('active');
-    state.filter = chip.getAttribute('data-filter');
-    applyFilterAndSort();
-    renderPage();
+  // Eventos de selección
+  selA.addEventListener('change', ()=>{
+    if(selA.value){
+      // limpiamos la otra
+      selI.value = '';
+      const opt = selA.options[selA.selectedIndex];
+      setSelected('Asesoría', selA.value, opt?.dataset?.desc, Number(opt?.dataset?.usage||0));
+    }else{
+      setSelected(null, null, null, null);
+    }
+  });
+  selI.addEventListener('change', ()=>{
+    if(selI.value){
+      selA.value = '';
+      const opt = selI.options[selI.selectedIndex];
+      setSelected('Imprenta', selI.value, opt?.dataset?.desc, Number(opt?.dataset?.usage||0));
+    }else{
+      setSelected(null, null, null, null);
+    }
   });
 
-  // Orden
-  $('#ordUso').addEventListener('click', ()=>{
-    state.sortBy = 'uso';
-    applyFilterAndSort();
-    renderPage();
-  });
-  $('#ordCodigo').addEventListener('click', ()=>{
-    state.sortBy = 'codigo';
-    applyFilterAndSort();
-    renderPage();
+  btnLimpiar.addEventListener('click', ()=>{
+    selA.value = '';
+    selI.value = '';
+    setSelected(null, null, null, null);
   });
 
-  // Mostrar más
-  btnMas.addEventListener('click', ()=>{
-    state.page += 1;
-    renderPage();
-  });
-
-  // Selección
-  btnQuitarSel.addEventListener('click', ()=>{
-    state.selected.clear();
-    updateSelectionBar();
-    $$('.card-code.selected', grid).forEach(el=>el.classList.remove('selected'));
-  });
   btnContinuar.addEventListener('click', ()=>{
-    const seleccionados = Array.from(state.selected);
-    if(!seleccionados.length){
-      alert('Selecciona al menos un código.');
-      return;
-    }
-    // Aquí luego puedes navegar o guardar en URL/Storage:
-    console.log('Códigos seleccionados:', seleccionados);
-    alert(`Seleccionados: ${seleccionados.join(', ')}`);
+    if(!selected) return;
+    // Aquí luego llamarás a tu endpoint de métricas/tabla con selected.codigo y selected.tipo
+    alert(`Continuar con: ${selected.tipo} — ${selected.codigo}`);
   });
 
-  load();
+  // Carga inicial
+  (async function init(){
+    try{
+      [dataA, dataI] = await Promise.all([ fetchList('Asesoría'), fetchList('Imprenta') ]);
+      fillSelect(selA, dataA);
+      fillSelect(selI, dataI);
+      updateInfo();
+    }catch(err){
+      fillSelect(selA, []);
+      fillSelect(selI, []);
+      infoA.textContent = 'Error al cargar.';
+      infoI.textContent = 'Error al cargar.';
+      resumen.textContent = `⚠ ${err.message || String(err)}`;
+    }
+  })();
 </script>
 </body>
 </html>
