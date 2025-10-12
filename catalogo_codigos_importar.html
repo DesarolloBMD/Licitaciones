@@ -35,25 +35,32 @@
   <!-- CARGA -->
   <div class="glass p-3 p-lg-4 mb-4">
     <form id="frm" class="vstack gap-3" enctype="multipart/form-data">
-      <div class="row g-3">
-        <div class="col-12 col-lg-8">
-          <label class="form-label">Archivo (.csv, .tsv o .txt)</label>
-          <input class="form-control" type="file" name="archivo" id="archivo" accept=".csv,.tsv,.txt" required />
-          <div class="form-text small-muted">
-            Separador soportado: <code>,</code>, <code>;</code> o <code>(tab)</code> (auto-detectado).
-          </div>
-        </div>
-        <div class="col-12 col-lg-4 d-flex align-items-end">
-          <button class="btn btn-acento w-100" id="btnEnviar" type="submit">
-            Subir e importar
-          </button>
+      <div>
+        <label class="form-label">Archivo (.csv, .tsv o .txt)</label>
+        <input class="form-control" type="file" name="archivo" id="archivo" accept=".csv,.tsv,.txt" required />
+        <div class="form-text small-muted">
+          Separador soportado: <code>,</code>, <code>;</code> o <code>(tab)</code> (auto-detectado).
         </div>
       </div>
 
+      <!-- Botones debajo del input -->
+      <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-acento" id="btnEnviar" type="submit">
+          Subir e importar
+        </button>
+        <button class="btn btn-outline-danger" type="button" id="btnCancelar" disabled>
+          Cancelar
+        </button>
+      </div>
+
+      <!-- Progreso + Cronómetro -->
       <div class="d-none" id="pgwrap">
         <div class="d-flex justify-content-between align-items-center mb-1">
           <small class="text-muted">Progreso</small>
-          <small class="text-muted" id="pct">0%</small>
+          <div class="d-flex align-items-center gap-3">
+            <small class="text-muted">Tiempo: <span id="timer">00:00</span></small>
+            <small class="text-muted" id="pct">0%</small>
+          </div>
         </div>
         <div class="progress">
           <div class="progress-bar bg-success" id="bar" style="width:0%"></div>
@@ -81,12 +88,11 @@
             <th class="text-end">Filas</th>
             <th class="text-end">Insert/Upd</th>
             <th class="text-end">Saltadas</th>
-            <th>Estado</th>
             <th class="text-end">Acciones</th>
           </tr>
         </thead>
         <tbody id="logs">
-          <tr><td colspan="7" class="text-muted">Cargando…</td></tr>
+          <tr><td colspan="6" class="text-muted">Cargando…</td></tr>
         </tbody>
       </table>
     </div>
@@ -94,10 +100,10 @@
 </main>
 
 <script>
-  const ENDPOINT = 'api/catalogo_codigos_importar.php'; // tu endpoint PHP
+  const ENDPOINT = 'api/catalogo_codigos_importar.php';
   const $ = (s,d=document)=>d.querySelector(s);
 
-  let controller=null, fakeTimer=null;
+  let controller=null, fakeTimer=null, tInterval=null, tStart=null;
 
   function esc(s){ return (s??'').toString().replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
   function setProgress(p){ $('#pgwrap').classList.remove('d-none'); $('#bar').style.width=p+'%'; $('#pct').textContent=p+'%'; }
@@ -107,15 +113,18 @@
   }
   function stopFakeProgress(){ if(fakeTimer){ clearInterval(fakeTimer); fakeTimer=null; } }
 
+  function fmt(ms){ const s=Math.floor(ms/1000); const m=Math.floor(s/60); const ss=String(s%60).padStart(2,'0'); return String(m).padStart(2,'0')+':'+ss; }
+  function startTimer(){ tStart=Date.now(); $('#timer').textContent='00:00'; tInterval=setInterval(()=>{ $('#timer').textContent=fmt(Date.now()-tStart); },250); }
+  function stopTimer(){ if(tInterval){ clearInterval(tInterval); tInterval=null; } }
+
   async function loadLogs(){
     try{
       const r = await fetch(`${ENDPOINT}?accion=logs`);
       const j = await r.json();
       const tb = $('#logs');
-      if(!j.ok){ tb.innerHTML = `<tr><td colspan="7" class="text-danger">Error: ${esc(j.error||'')}</td></tr>`; return; }
-      if(!j.logs.length){ tb.innerHTML = `<tr><td colspan="7" class="text-muted">Sin importaciones aún.</td></tr>`; return; }
+      if(!j.ok){ tb.innerHTML = `<tr><td colspan="6" class="text-danger">Error: ${esc(j.error||'')}</td></tr>`; return; }
+      if(!j.logs.length){ tb.innerHTML = `<tr><td colspan="6" class="text-muted">Sin importaciones aún.</td></tr>`; return; }
       tb.innerHTML = j.logs.map(row=>{
-        const estado = row.anulado_at ? `<span class="badge bg-secondary">Anulado</span>` : `<span class="badge bg-success">Activo</span>`;
         const fecha  = row.started_at ? new Date(row.started_at).toLocaleString() : '';
         const btn = row.anulado_at
           ? `<button class="btn btn-sm btn-outline-secondary" disabled>Anulado</button>`
@@ -126,12 +135,11 @@
           <td class="text-end">${row.total_rows ?? ''}</td>
           <td class="text-end">${row.inserted ?? ''}</td>
           <td class="text-end">${row.skipped ?? ''}</td>
-          <td>${estado}</td>
           <td class="text-end">${btn}</td>
         </tr>`;
       }).join('');
     }catch(e){
-      $('#logs').innerHTML = `<tr><td colspan="7" class="text-danger">Error al cargar: ${esc(e.message||String(e))}</td></tr>`;
+      $('#logs').innerHTML = `<tr><td colspan="6" class="text-danger">Error al cargar: ${esc(e.message||String(e))}</td></tr>`;
     }
   }
 
@@ -157,16 +165,17 @@
 
     controller = new AbortController();
     $('#btnEnviar').disabled = true;
+    $('#btnCancelar').disabled = false;
     $('#msg').textContent = 'Subiendo…';
     $('#res').textContent = '';
     $('#raw').classList.add('d-none');
     startFakeProgress();
+    startTimer();
 
     try{
       const r = await fetch(ENDPOINT, { method:'POST', body: fd, signal: controller.signal });
-      stopFakeProgress(); setProgress(100);
+      stopFakeProgress(); stopTimer(); setProgress(100);
 
-      // Lectura tolerante a no-JSON
       const raw = await r.text();
       let j; try{ j = JSON.parse(raw); } catch{ j = { ok:false, error: raw }; }
 
@@ -186,12 +195,22 @@
       await loadLogs();
 
     }catch(err){
-      stopFakeProgress();
-      $('#msg').textContent = '⚠ ' + (err.message || String(err));
+      stopFakeProgress(); stopTimer();
+      if(err.name === 'AbortError'){
+        $('#msg').textContent = '⛔ Importación cancelada por el usuario.';
+      }else{
+        $('#msg').textContent = '⚠ ' + (err.message || String(err));
+      }
     }finally{
       $('#btnEnviar').disabled = false;
+      $('#btnCancelar').disabled = true;
       controller = null;
     }
+  });
+
+  // Cancelar
+  $('#btnCancelar').addEventListener('click', ()=>{
+    if(controller){ controller.abort(); }
   });
 
   // Inicial
