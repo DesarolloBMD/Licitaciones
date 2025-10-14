@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 @ini_set('memory_limit','1024M');
 @set_time_limit(0);
-@ini_set('display_errors','0'); // no mostrar HTML
+@ini_set('display_errors','0');
 error_reporting(E_ALL);
-ob_start(); // capturar salida accidental
+ob_start();
 
 /* ======== CORS ======== */
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
@@ -58,14 +58,24 @@ function new_uuid():string{
   $d[8]=chr(ord($d[8])&0x3f|0x80);
   return vsprintf('%s%s-%s-%s-%s-%s%s%s',str_split(bin2hex($d),4));
 }
+
+/* ✅ Función robusta para limpiar encabezados */
 function clean_header($h){
-  $h = preg_replace('/^\xEF\xBB\xBF/', '', $h); // BOM
+  if (!is_string($h)) $h = (string)$h;
+  $h = trim($h);
+  if ($h === '') return ''; // ignora encabezados vacíos
+  $h = preg_replace('/^\xEF\xBB\xBF/', '', $h); // elimina BOM
   $h = trim(str_replace(['"',"'"], '', $h));
   $h = preg_replace('/\s+/u',' ',$h);
-  $map = ['Á'=>'A','á'=>'a','É'=>'E','é'=>'e','Í'=>'I','í'=>'i','Ó'=>'O','ó'=>'o','Ú'=>'U','ú'=>'u','Ü'=>'U','ü'=>'u','Ñ'=>'N','ñ'=>'n'];
+  $map = [
+    'Á'=>'A','á'=>'a','É'=>'E','é'=>'e','Í'=>'I','í'=>'i',
+    'Ó'=>'O','ó'=>'o','Ú'=>'U','ú'=>'u','Ü'=>'U','ü'=>'u',
+    'Ñ'=>'N','ñ'=>'n'
+  ];
   $h = strtr($h,$map);
   return $h;
 }
+
 function build_fingerprint(array $t): string {
   return md5(implode('|',[
     $t['Mes de Descarga']??'',
@@ -145,6 +155,7 @@ $delim=array_key_first($delims) ?: ";";
 $headers=fgetcsv($fh,0,$delim);
 if(!$headers){ echo json_encode(['ok'=>false,'error'=>'No se pudieron leer encabezados']); exit; }
 $headers=array_map('clean_header',$headers);
+$headers=array_filter($headers,function($h){ return $h!==''; }); // elimina vacíos
 
 /* ======== Verificar columnas existentes en la tabla ======== */
 $colsBD = $pdo->query("SELECT column_name FROM information_schema.columns WHERE table_name = 'Procedimientos Adjudicados'")->fetchAll(PDO::FETCH_COLUMN);
