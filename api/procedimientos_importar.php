@@ -59,20 +59,27 @@ function new_uuid():string{
   return vsprintf('%s%s-%s-%s-%s-%s%s%s',str_split(bin2hex($d),4));
 }
 
-/* ✅ Función robusta para limpiar encabezados */
-function clean_header($h){
-  if (!is_string($h)) $h = (string)$h;
+/* ✅ Limpieza robusta de encabezados */
+function clean_header($h) {
+  if (!is_string($h)) {
+    if (is_null($h) || $h === false) return '';
+    $h = (string)$h;
+  }
   $h = trim($h);
-  if ($h === '') return ''; // ignora encabezados vacíos
-  $h = preg_replace('/^\xEF\xBB\xBF/', '', $h); // elimina BOM
-  $h = trim(str_replace(['"',"'"], '', $h));
-  $h = preg_replace('/\s+/u',' ',$h);
-  $map = [
+  if ($h === '') return ''; // ignora vacíos
+  $h = preg_replace('/^\xEF\xBB\xBF/', '', $h); // quita BOM
+  $h = str_replace(['"',"'"], '', $h);
+  $h = preg_replace('/\s+/u', ' ', $h);
+  $h = trim($h);
+  static $map = [
     'Á'=>'A','á'=>'a','É'=>'E','é'=>'e','Í'=>'I','í'=>'i',
     'Ó'=>'O','ó'=>'o','Ú'=>'U','ú'=>'u','Ü'=>'U','ü'=>'u',
     'Ñ'=>'N','ñ'=>'n'
   ];
-  $h = strtr($h,$map);
+  $h = strtr($h, $map);
+  // quita espacios o caracteres raros alrededor
+  $h = preg_replace('/[^\w\s\-\.\(\)\/]/u', '', $h);
+  $h = trim($h);
   return $h;
 }
 
@@ -157,7 +164,10 @@ if(!$headers){ echo json_encode(['ok'=>false,'error'=>'No se pudieron leer encab
 $headers=array_map('clean_header',$headers);
 $headers=array_filter($headers,function($h){ return $h!==''; }); // elimina vacíos
 
-/* ======== Verificar columnas existentes en la tabla ======== */
+/* ======== Ajuste: quita dobles espacios y espacios extremos en encabezados ======== */
+$headers=array_map(fn($h)=>trim(preg_replace('/\s+/',' ',$h)),$headers);
+
+/* ======== Verificar columnas existentes ======== */
 $colsBD = $pdo->query("SELECT column_name FROM information_schema.columns WHERE table_name = 'Procedimientos Adjudicados'")->fetchAll(PDO::FETCH_COLUMN);
 $headers = array_values(array_intersect($headers, $colsBD));
 if (empty($headers)) {
