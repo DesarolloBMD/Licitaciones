@@ -83,8 +83,9 @@ function fmt(ms){ const s=Math.floor(ms/1000), m=String(Math.floor(s/60)).padSta
 async function fetchHist(){
   const body=$('#histRows');
   try{
-    const r=await fetch(API_URL+'?accion=logs');
-    const j=await r.json();
+    const r=await fetch(API_URL+'?accion=logs',{cache:'no-store'});
+    const txt=await r.text();
+    let j; try{ j=JSON.parse(txt); }catch{ throw new Error('Respuesta no válida del servidor:\n'+txt.slice(0,300)); }
     if(!j.ok) throw new Error(j.error||'No se pudo cargar');
     if(!j.logs.length){ body.innerHTML='<tr><td colspan="5" class="text-muted">Sin registros</td></tr>'; return; }
     body.innerHTML=j.logs.map(l=>`
@@ -95,8 +96,12 @@ async function fetchHist(){
         <td>${l.skipped}</td>
         <td>${l.total_rows}</td>
       </tr>`).join('');
-  }catch(e){ body.innerHTML='<tr><td colspan="5" class="text-danger">'+e.message+'</td></tr>'; }
+  }catch(e){
+    body.innerHTML='<tr><td colspan="5" class="text-danger">'+escapeHTML(e.message)+'</td></tr>';
+  }
 }
+
+function escapeHTML(s){ return (s??'').replace(/[&<>"]/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[m])); }
 
 $('#frm').addEventListener('submit', async e=>{
   e.preventDefault();
@@ -107,11 +112,14 @@ $('#frm').addEventListener('submit', async e=>{
   const start=performance.now();
   try{
     const r=await fetch(API_URL,{method:'POST',body:fd});
-    const j=await r.json();
+    const raw=await r.text();
+    let j; try{ j=JSON.parse(raw); }catch{ throw new Error('Respuesta no válida del servidor:\n'+raw.slice(0,300)); }
     setProgress(100);
-    $('#msg').innerHTML=j.ok?`✅ Insertados: <b>${j.insertados}</b> / Saltados: <b>${j.saltados}</b> / Total: ${j.total}`:`⚠ Error: ${j.error}`;
+    if(!j.ok) throw new Error(j.error||'Error desconocido');
+    $('#msg').innerHTML=`✅ <b>Insertados:</b> ${j.insertados} / <b>Saltados:</b> ${j.saltados} / Total: ${j.total}`;
   }catch(err){
-    $('#msg').innerHTML='⚠ '+err.message;
+    setProgress(100);
+    $('#msg').innerHTML='⚠ '+escapeHTML(err.message);
   }
   $('#timer').textContent=fmt(performance.now()-start);
   fetchHist();
@@ -119,5 +127,6 @@ $('#frm').addEventListener('submit', async e=>{
 
 window.addEventListener('DOMContentLoaded', fetchHist);
 </script>
+
 </body>
 </html>
