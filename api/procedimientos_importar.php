@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 @ini_set('memory_limit','1024M');
 @set_time_limit(0);
+@ini_set('display_errors','0'); // no mostrar HTML
+error_reporting(E_ALL);
+ob_start(); // capturar salida accidental
 
 /* ======== CORS ======== */
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
@@ -13,21 +16,22 @@ header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 header('Content-Type: application/json; charset=utf-8');
 
-/* ======== Manejador de errores ======== */
-ob_start();
+/* ======== Captura errores PHP y los devuelve en JSON ======== */
 set_error_handler(function($s,$m,$f,$l){ throw new ErrorException($m,0,$s,$f,$l); });
 register_shutdown_function(function(){
   $err = error_get_last();
   if ($err && in_array($err['type'],[E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR])){
     http_response_code(500);
+    $out = ob_get_clean();
     echo json_encode([
       'ok'=>false,
-      'error'=>'Fallo fatal: '.$err['message'].' @ '.$err['file'].':'.$err['line']
+      'error'=>'Fallo fatal: '.$err['message'].' @ '.$err['file'].':'.$err['line'],
+      'debug'=>$out ? trim(strip_tags($out)) : null
     ],JSON_UNESCAPED_UNICODE);
   }
 });
 
-/* ======== Conexión a la BD ======== */
+/* ======== Conexión a Postgres ======== */
 $DATABASE_URL = getenv('DATABASE_URL');
 if (!$DATABASE_URL || stripos($DATABASE_URL,'postgres')===false){
   $DATABASE_URL = 'postgresql://licitaciones_bmd_user:vFgswY5U7MaSqqexdhjgAE5M9fBpT2OQ@dpg-d3g2v7j3fgac73c4eek0-a.oregon-postgres.render.com:5432/licitaciones_bmd?sslmode=require';
@@ -42,14 +46,20 @@ try {
   ]);
   $pdo->exec("SET TIME ZONE 'UTC'");
 } catch(Throwable $e){
+  if (ob_get_length()) ob_clean();
   echo json_encode(['ok'=>false,'error'=>'Error de conexión: '.$e->getMessage()],JSON_UNESCAPED_UNICODE);
   exit;
 }
 
 /* ======== Helpers ======== */
-function new_uuid():string{ $d=random_bytes(16);$d[6]=chr(ord($d[6])&0x0f|0x40);$d[8]=chr(ord($d[8])&0x3f|0x80);return vsprintf('%s%s-%s-%s-%s-%s%s%s',str_split(bin2hex($d),4)); }
+function new_uuid():string{
+  $d=random_bytes(16);
+  $d[6]=chr(ord($d[6])&0x0f|0x40);
+  $d[8]=chr(ord($d[8])&0x3f|0x80);
+  return vsprintf('%s%s-%s-%s-%s-%s%s%s',str_split(bin2hex($d),4));
+}
 function clean_header($h){
-  $h = preg_replace('/^\xEF\xBB\xBF/', '', $h);
+  $h = preg_replace('/^\xEF\xBB\xBF/', '', $h); // BOM
   $h = trim(str_replace(['"',"'"], '', $h));
   $h = preg_replace('/\s+/u',' ',$h);
   $map = ['Á'=>'A','á'=>'a','É'=>'E','é'=>'e','Í'=>'I','í'=>'i','Ó'=>'O','ó'=>'o','Ú'=>'U','ú'=>'u','Ü'=>'U','ü'=>'u','Ñ'=>'N','ñ'=>'n'];
@@ -70,30 +80,38 @@ function build_fingerprint(array $t): string {
   ]));
 }
 
-/* ======== Crear tablas auxiliares ======== */
-$pdo->exec('CREATE TABLE IF NOT EXISTS public.procedimientos_import_log(
-  import_id  UUID PRIMARY KEY,
-  filename   TEXT,
-  total_rows INTEGER,
-  inserted   INTEGER,
-  skipped    INTEGER,
-  started_at TIMESTAMPTZ DEFAULT now(),
-  finished_at TIMESTAMPTZ,
-  source_ip  TEXT
-)');
+/* ======== Inicializar tablas ======== */
+try {
+  $pdo->exec('CREATE TABLE IF NOT EXISTS public.procedimientos_import_log(
+    import_id  UUID PRIMARY KEY,
+    filename   TEXT,
+    total_rows INTEGER,
+    inserted   INTEGER,
+    skipped    INTEGER,
+    started_at TIMESTAMPTZ DEFAULT now(),
+    finished_at TIMESTAMPTZ,
+    source_ip  TEXT
+  )');
 
-$pdo->exec('ALTER TABLE public."Procedimientos Adjudicados"
-  ADD COLUMN IF NOT EXISTS fingerprint TEXT,
-  ADD COLUMN IF NOT EXISTS import_id UUID,
-  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now(),
-  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now()');
+  $pdo->exec('ALTER TABLE public."Procedimientos Adjudicados"
+    ADD COLUMN IF NOT EXISTS fingerprint TEXT,
+    ADD COLUMN IF NOT EXISTS import_id UUID,
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now(),
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now()');
+} catch(Throwable $e){
+  if (ob_get_length()) ob_clean();
+  echo json_encode(['ok'=>false,'error'=>'Error inicializando tablas: '.$e->getMessage()],JSON_UNESCAPED_UNICODE);
+  exit;
+}
 
-/* ======== Historial ======== */
+/* ======== Endpoint historial ======== */
 if (isset($_GET['accion']) && $_GET['accion']==='logs') {
   try {
     $rows = $pdo->query('SELECT * FROM public.procedimientos_import_log ORDER BY started_at DESC LIMIT 100')->fetchAll();
+    if (ob_get_length()) ob_clean();
     echo json_encode(['ok'=>true,'logs'=>$rows], JSON_UNESCAPED_UNICODE);
   } catch(Throwable $e) {
+    if (ob_get_length()) ob_clean();
     echo json_encode(['ok'=>false,'error'=>$e->getMessage()], JSON_UNESCAPED_UNICODE);
   }
   exit;
@@ -101,13 +119,16 @@ if (isset($_GET['accion']) && $_GET['accion']==='logs') {
 
 /* ======== Validar archivo ======== */
 if (!isset($_FILES['archivo']) || $_FILES['archivo']['error']!==UPLOAD_ERR_OK){
+  if (ob_get_length()) ob_clean();
   echo json_encode(['ok'=>false,'error'=>'Archivo no recibido (campo "archivo")'],JSON_UNESCAPED_UNICODE);
   exit;
 }
+
 $name=$_FILES['archivo']['name'];
 $tmp=$_FILES['archivo']['tmp_name'];
 $ext=strtolower(pathinfo($name,PATHINFO_EXTENSION));
 if(!in_array($ext,['csv','txt','tsv'],true)){
+  if (ob_get_length()) ob_clean();
   echo json_encode(['ok'=>false,'error'=>'Formato no permitido (.csv o .txt)'],JSON_UNESCAPED_UNICODE);
   exit;
 }
@@ -125,7 +146,7 @@ $headers=fgetcsv($fh,0,$delim);
 if(!$headers){ echo json_encode(['ok'=>false,'error'=>'No se pudieron leer encabezados']); exit; }
 $headers=array_map('clean_header',$headers);
 
-/* ======== Verificar columnas válidas ======== */
+/* ======== Verificar columnas existentes en la tabla ======== */
 $colsBD = $pdo->query("SELECT column_name FROM information_schema.columns WHERE table_name = 'Procedimientos Adjudicados'")->fetchAll(PDO::FETCH_COLUMN);
 $headers = array_values(array_intersect($headers, $colsBD));
 if (empty($headers)) {
@@ -140,7 +161,7 @@ $log=$pdo->prepare('INSERT INTO public.procedimientos_import_log(import_id,filen
                     VALUES(:id,:fn,0,0,0,now(),:ip)');
 $log->execute([':id'=>$import_id,':fn'=>$name,':ip'=>$ip]);
 
-/* ======== Preparar SQL dinámico ======== */
+/* ======== SQL dinámico ======== */
 $cols=array_map(fn($h)=>'"'.$h.'"',$headers);
 $params=array_map(fn($h)=>':'.preg_replace('/\W+/','_',strtolower($h)),$headers);
 $sql='INSERT INTO public."Procedimientos Adjudicados"('.implode(',',$cols).',fingerprint,import_id,created_at,updated_at)
@@ -185,7 +206,8 @@ $upd=$pdo->prepare('UPDATE public.procedimientos_import_log
                     WHERE import_id=:id');
 $upd->execute([':t'=>$total,':i'=>$inserted,':s'=>$skipped,':id'=>$import_id]);
 
-/* ======== Respuesta final ======== */
+/* ======== Enviar JSON limpio ======== */
+if (ob_get_length()) ob_clean();
 echo json_encode([
   'ok'=>true,
   'import_id'=>$import_id,
@@ -193,4 +215,5 @@ echo json_encode([
   'saltados'=>$skipped,
   'total'=>$total
 ],JSON_UNESCAPED_UNICODE);
+exit;
 ?>
