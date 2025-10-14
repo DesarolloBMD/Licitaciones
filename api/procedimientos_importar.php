@@ -75,7 +75,22 @@ $pdo->exec('ALTER TABLE public."Procedimientos Adjudicados"
   ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now(),
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now()');
 
-/* ======== Función de fingerprint ======== */
+/* ======== Endpoint de logs ======== */
+if (isset($_GET['accion']) && $_GET['accion']==='logs') {
+  header('Content-Type: application/json; charset=utf-8');
+  try {
+    $rows = $pdo->query('SELECT import_id, filename, total_rows, inserted, skipped, started_at, finished_at, anulado_at
+                         FROM public.procedimientos_import_log
+                         ORDER BY started_at DESC
+                         LIMIT 100')->fetchAll();
+    echo json_encode(['ok'=>true,'logs'=>$rows], JSON_UNESCAPED_UNICODE);
+  } catch(Throwable $e) {
+    echo json_encode(['ok'=>false,'error'=>$e->getMessage()], JSON_UNESCAPED_UNICODE);
+  }
+  exit;
+}
+
+/* ======== Fingerprint ======== */
 function build_fingerprint(array $t): string {
   return md5(implode('|',[
     $t['Mes de Descarga']??'',
@@ -90,7 +105,7 @@ function build_fingerprint(array $t): string {
   ]));
 }
 
-/* ======== Importación ======== */
+/* ======== Inicio importación ======== */
 header('Content-Type: application/json; charset=utf-8');
 if (!isset($_FILES['archivo']) || $_FILES['archivo']['error']!==UPLOAD_ERR_OK){
   echo json_encode(['ok'=>false,'error'=>'Archivo no recibido (campo "archivo")'],JSON_UNESCAPED_UNICODE);
@@ -108,20 +123,20 @@ if(!in_array($ext,['csv','txt','tsv'],true)){
 $fh=fopen($tmp,'r'); if(!$fh){ echo json_encode(['ok'=>false,'error'=>'No se pudo abrir el archivo']); exit; }
 $first=fgets($fh); rewind($fh);
 $delims=[","=>substr_count($first,","),";"=>substr_count($first,";"),"\t"=>substr_count($first,"\t"),"|"=>substr_count($first,"|")];
-arsort($delims); $delim=array_key_first($delims);
+arsort($delims); $delim=array_key_first($delims) ?: ",";
 
 /* Leer encabezados */
 $headers=fgetcsv($fh,0,$delim);
 if(!$headers){ echo json_encode(['ok'=>false,'error'=>'No se pudieron leer encabezados']); exit; }
 $headers=array_map('norm_header',$headers);
 
-/* Inicia log */
+/* Registrar importación */
 $import_id=new_uuid();
 $log=$pdo->prepare('INSERT INTO public.procedimientos_import_log(import_id,filename,total_rows,inserted,skipped,started_at,source_ip)
                     VALUES(:id,:fn,0,0,0,now(),:ip)');
 $log->execute([':id'=>$import_id,':fn'=>$name,':ip'=>$CLIENT_IP]);
 
-/* UPSERT preparado */
+/* Preparar SQL dinámico */
 $cols=array_map(fn($h)=>'"'.$h.'"',$headers);
 $params=array_map(fn($h)=>':'.preg_replace('/\W+/','_',strtolower($h)),$headers);
 $sql='INSERT INTO public."Procedimientos Adjudicados"('.implode(',',$cols).',fingerprint,import_id,created_at,updated_at)
@@ -129,7 +144,7 @@ $sql='INSERT INTO public."Procedimientos Adjudicados"('.implode(',',$cols).',fin
       ON CONFLICT (fingerprint) DO NOTHING';
 $stmt=$pdo->prepare($sql);
 
-/* Importar filas */
+/* Importar datos */
 $total=0; $inserted=0; $skipped=0;
 $pdo->beginTransaction();
 try{
@@ -159,9 +174,17 @@ try{
 }
 fclose($fh);
 
+/* Actualizar log */
 $upd=$pdo->prepare('UPDATE public.procedimientos_import_log
                     SET total_rows=:t,inserted=:i,skipped=:s,finished_at=now()
                     WHERE import_id=:id');
 $upd->execute([':t'=>$total,':i'=>$inserted,':s'=>$skipped,':id'=>$import_id]);
 
-echo json_encode(['ok'=>true,'import_id'=>$import_id,'insertados'=>$inserted,'saltados'=>$skipped,'total'=>$total],JSON_UNESCAPED_UNICODE);
+/* Respuesta final */
+echo json_encode([
+  'ok'=>true,
+  'import_id'=>$import_id,
+  'insertados'=>$inserted,
+  'saltados'=>$skipped,
+  'total'=>$total
+],JSON_UNESCAPED_UNICODE);
