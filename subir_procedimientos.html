@@ -3,176 +3,176 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Importador de Datos CSV / Excel</title>
-
-  <!-- Bootstrap -->
+  <title>Gestión de Licitaciones — Importar Procedimientos</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
-
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/>
   <style>
-    :root {
-      --color-principal: #0B4912;
-      --color-secundario: #126a1a;
-    }
-    body {
-      background: #0b0f24;
-      color: #eaf2ff;
-      font-family: system-ui, sans-serif;
-      padding: 40px 20px;
-    }
-    .panel {
-      background: #ffffff;
-      color: #0e1b2a;
-      border-radius: 16px;
-      box-shadow: 0 6px 18px rgba(0,0,0,.15);
-      padding: 24px;
-      max-width: 800px;
-      margin: 0 auto;
-    }
-    .btn-acento {
-      background-color: var(--color-principal);
-      color: #fff;
-      font-weight: 600;
-    }
-    .btn-acento:hover {
-      background-color: var(--color-secundario);
-      color: #fff;
-    }
-    .progress {
-      height: 10px;
-      border-radius: 10px;
-    }
-    #cronometro {
-      font-family: monospace;
-      color: #555;
-    }
+    :root { --acento:#0B4912; --acento2:#126a1a; }
+    body { background:#0b0f24; color:#0e1b2a; font-family: system-ui, sans-serif; }
+    .hero { background:linear-gradient(180deg,#0b0f24 0%, #0e132c 100%); color:#eaf2ff; padding:48px 0 56px; }
+    .glass { background:#fff; border-radius:18px; box-shadow:0 10px 30px rgba(0,0,0,.1); border:1px solid rgba(0,0,0,.08); }
+    .btn-acento { background:var(--acento); color:#fff; border:none; font-weight:500; }
+    .btn-acento:hover { background:var(--acento2); color:#fff; }
+    .small-muted { color:#6b7b91; font-size:.9rem; }
+    .progress { height:8px; border-radius:8px; }
+    pre { font-family: monospace; font-size:.85rem; background:#f8f9fa; border-radius:6px; padding:.5rem; }
   </style>
 </head>
 <body>
+<header class="hero">
+  <div class="container d-flex align-items-center gap-3">
+    <span class="d-inline-flex align-items-center justify-content-center bg-success rounded-3"
+          style="width:48px;height:48px;box-shadow:0 8px 24px rgba(16,185,129,.25)">
+      <i class="bi bi-upload text-white fs-4"></i>
+    </span>
+    <div>
+      <h1 class="h4 m-0">Importar “Procedimientos Adjudicados”</h1>
+      <div class="text-white-50 small">Carga de archivos CSV o XLSX con encabezados.</div>
+    </div>
+  </div>
+</header>
 
-<div class="container">
-  <h2 class="text-center mb-4">📂 Importador de Datos (.CSV / .XLSX)</h2>
-
-  <div class="panel">
-    <form id="formImportador" class="vstack gap-3">
-
-      <!-- Selector de archivo -->
-      <div>
-        <label class="form-label fw-semibold">Seleccione archivo:</label>
-        <input type="file" class="form-control" id="archivo" accept=".csv,.xlsx" required>
-        <div class="form-text text-muted">Formatos permitidos: <code>.csv</code> o <code>.xlsx</code></div>
-      </div>
-
-      <!-- Checkbox de encabezados -->
-      <div class="form-check">
-        <input class="form-check-input" type="checkbox" id="tieneHeader" checked>
-        <label class="form-check-label" for="tieneHeader">La primera fila contiene encabezados</label>
-      </div>
-
-      <!-- Botones -->
-      <div class="d-flex flex-wrap gap-2">
-        <button type="submit" class="btn btn-acento">
-          <i class="bi bi-cloud-arrow-up me-1"></i> Importar
-        </button>
-        <button type="button" id="btnCancelar" class="btn btn-outline-danger" disabled>
-          <i class="bi bi-x-circle me-1"></i> Cancelar
-        </button>
-        <button type="reset" id="btnLimpiar" class="btn btn-outline-secondary">
-          <i class="bi bi-eraser me-1"></i> Limpiar
-        </button>
-      </div>
-
-      <!-- Barra de progreso -->
-      <div id="progresoArea" class="mt-3 d-none">
-        <small class="text-muted">Progreso:</small>
-        <div class="progress mt-1">
-          <div class="progress-bar bg-success" id="barraProgreso" style="width:0%">0%</div>
+<main class="container" style="margin-top:-36px;margin-bottom:64px;">
+  <!-- Panel principal -->
+  <div class="glass p-3 p-lg-4">
+    <form id="frm" class="vstack gap-3" enctype="multipart/form-data">
+      <div class="row g-3 align-items-end">
+        <div class="col-lg-7">
+          <label class="form-label fw-semibold">Archivo a importar</label>
+          <input class="form-control" type="file" name="archivo" id="archivo" accept=".csv,.xlsx" required />
+          <div class="form-text small-muted">El archivo debe incluir los encabezados oficiales.</div>
         </div>
-        <small class="text-muted">Tiempo transcurrido: <span id="cronometro">00:00</span></small>
+        <div class="col-lg-3">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="chkHeader" checked>
+            <label class="form-check-label small" for="chkHeader">Primera fila tiene encabezados</label>
+          </div>
+        </div>
+        <div class="col-lg-2 d-grid">
+          <button class="btn btn-acento" type="submit"><i class="bi bi-cloud-arrow-up me-1"></i>Importar</button>
+        </div>
       </div>
 
+      <div class="d-flex align-items-center gap-3">
+        <button class="btn btn-outline-secondary btn-sm" type="reset" id="btnLimpiar"><i class="bi bi-eraser me-1"></i>Limpiar</button>
+        <button class="btn btn-outline-danger btn-sm" type="button" id="btnCancelar" disabled><i class="bi bi-x-circle me-1"></i>Cancelar</button>
+      </div>
+
+      <!-- Progreso -->
+      <div class="mt-3 d-none" id="pgwrap">
+        <div class="d-flex justify-content-between">
+          <small class="text-muted">Progreso</small><small class="text-muted" id="pct">0%</small>
+        </div>
+        <div class="progress"><div id="bar" class="progress-bar bg-success" style="width:0%"></div></div>
+        <div class="text-muted small mt-1">Tiempo: <span id="timer">00:00</span></div>
+      </div>
+
+      <div id="msg" class="small mt-3 text-muted"></div>
     </form>
   </div>
-</div>
 
-<!-- Bootstrap Icons y JS -->
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/>
+  <!-- Historial -->
+  <section class="glass p-3 p-lg-4 mt-3">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h2 class="h6 m-0">Historial de importaciones</h2>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-secondary" id="btnRefrescar"><i class="bi bi-arrow-clockwise me-1"></i>Actualizar</button>
+        <button class="btn btn-sm btn-outline-danger" id="btnAnularUltimo"><i class="bi bi-arrow-counterclockwise me-1"></i>Anular último</button>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead><tr>
+          <th>Fecha</th><th>Archivo</th><th>Insertados</th><th>Saltados</th><th>Total</th><th>Acción</th>
+        </tr></thead>
+        <tbody id="histRows"><tr><td colspan="6" class="text-muted">Cargando…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</main>
 
 <script>
-const form = document.getElementById('formImportador');
-const archivo = document.getElementById('archivo');
-const barra = document.getElementById('barraProgreso');
-const progresoArea = document.getElementById('progresoArea');
-const cronometro = document.getElementById('cronometro');
-const btnCancelar = document.getElementById('btnCancelar');
+const API_URL = 'api/subir_procedimientos.php';
+const $ = (s,d=document)=>d.querySelector(s);
+let controller=null, timer=null, start=0;
 
-let timer = null, startTime = 0, controller = null;
+function setProgress(p){ $('#pgwrap').classList.remove('d-none'); $('#bar').style.width=p+'%'; $('#pct').textContent=p+'%'; }
+function fmt(ms){ const s=Math.floor(ms/1000),m=String(Math.floor(s/60)).padStart(2,'0'),ss=String(s%60).padStart(2,'0'); return `${m}:${ss}`; }
+function startTimer(){ start=performance.now(); timer=setInterval(()=>$('#timer').textContent=fmt(performance.now()-start),500); }
+function stopTimer(){ if(timer){ clearInterval(timer); timer=null; } }
 
-// Formato mm:ss
-function formatTime(ms) {
-  const s = Math.floor(ms / 1000);
-  const m = String(Math.floor(s / 60)).padStart(2, '0');
-  const sec = String(s % 60).padStart(2, '0');
-  return `${m}:${sec}`;
+async function fetchHistorial(){
+  const body=$('#histRows');
+  body.innerHTML='<tr><td colspan="6" class="text-muted">Cargando…</td></tr>';
+  try{
+    const r=await fetch(API_URL+'?accion=logs'); const j=await r.json();
+    if(!j.ok) throw new Error(j.error||'Error desconocido');
+    if(!j.logs.length){ body.innerHTML='<tr><td colspan="6" class="text-muted">Sin registros</td></tr>'; return; }
+    body.innerHTML=j.logs.map(h=>`
+      <tr>
+        <td>${new Date(h.started_at).toLocaleString()}</td>
+        <td>${h.filename||'-'}</td>
+        <td>${h.inserted??'-'}</td>
+        <td>${h.skipped??'-'}</td>
+        <td>${h.total_rows??'-'}</td>
+        <td class="text-end"><button class="btn btn-sm btn-outline-danger" data-id="${h.import_id}"><i class="bi bi-trash"></i></button></td>
+      </tr>`).join('');
+  }catch(e){
+    body.innerHTML='<tr><td colspan="6" class="text-danger">'+e.message+'</td></tr>';
+  }
 }
 
-function startTimer() {
-  startTime = performance.now();
-  cronometro.textContent = "00:00";
-  timer = setInterval(() => {
-    cronometro.textContent = formatTime(performance.now() - startTime);
-  }, 500);
-}
-
-function stopTimer() {
-  clearInterval(timer);
-  timer = null;
-}
-
-// Simulación de progreso (solo visual)
-function setProgress(pct) {
-  progresoArea.classList.remove('d-none');
-  barra.style.width = pct + '%';
-  barra.textContent = pct + '%';
-}
-
-// Acciones
-form.addEventListener('submit', (e) => {
+$('#frm').addEventListener('submit', async e=>{
   e.preventDefault();
-  const file = archivo.files[0];
-  if (!file) return alert('Seleccione un archivo antes de importar.');
-
-  setProgress(0);
-  startTimer();
-  btnCancelar.disabled = false;
-
-  let p = 0;
-  controller = setInterval(() => {
-    p += Math.random() * 10;
-    if (p >= 100) {
-      p = 100;
-      clearInterval(controller);
-      stopTimer();
-      btnCancelar.disabled = true;
-    }
-    setProgress(Math.round(p));
-  }, 400);
+  const f=$('#archivo').files[0];
+  if(!f){ $('#msg').textContent='Seleccione un archivo.'; return; }
+  $('#msg').textContent='Subiendo archivo…';
+  setProgress(10); startTimer();
+  const fd=new FormData(); fd.append('archivo',f); fd.append('tiene_header',$('#chkHeader').checked?'1':'0');
+  $('#btnCancelar').disabled=false;
+  controller=new AbortController();
+  try{
+    const r=await fetch(API_URL,{method:'POST',body:fd,signal:controller.signal});
+    const j=await r.json();
+    setProgress(100); stopTimer();
+    if(!j.ok) $('#msg').innerHTML='⚠ Error: '+(j.error||'Desconocido');
+    else $('#msg').innerHTML=`✅ Importación completada — Insertados: <b>${j.insertados}</b> / Saltados: <b>${j.saltados}</b> / Total: ${j.total}`;
+    fetchHistorial();
+  }catch(err){
+    stopTimer(); $('#msg').innerHTML='⚠ '+(err.name==='AbortError'?'Cancelado por usuario.':err.message);
+  }finally{
+    $('#btnCancelar').disabled=true; controller=null;
+  }
 });
 
-btnCancelar.addEventListener('click', () => {
-  if (controller) clearInterval(controller);
-  stopTimer();
-  btnCancelar.disabled = true;
-  barra.style.width = '0%';
-  barra.textContent = '0%';
+$('#btnCancelar').addEventListener('click', ()=>{ if(controller){ controller.abort(); } });
+$('#btnLimpiar').addEventListener('click', ()=>{ $('#msg').textContent=''; $('#bar').style.width='0%'; $('#pct').textContent='0%'; $('#pgwrap').classList.add('d-none'); stopTimer(); $('#timer').textContent='00:00'; });
+$('#btnRefrescar').addEventListener('click', fetchHistorial);
+
+document.addEventListener('click', e=>{
+  const btn=e.target.closest('[data-id]');
+  if(!btn) return;
+  const id=btn.getAttribute('data-id');
+  if(!confirm('¿Desea anular esta importación?')) return;
+  fetch(API_URL,{method:'POST',body:new URLSearchParams({accion:'anular',import_id:id})})
+  .then(r=>r.json()).then(j=>{
+    if(!j.ok) alert('Error: '+j.error);
+    else alert('Importación anulada correctamente.');
+    fetchHistorial();
+  });
 });
 
-form.addEventListener('reset', () => {
-  stopTimer();
-  barra.style.width = '0%';
-  barra.textContent = '0%';
-  progresoArea.classList.add('d-none');
+$('#btnAnularUltimo').addEventListener('click', ()=>{
+  if(!confirm('¿Desea anular la última importación?')) return;
+  fetch(API_URL,{method:'POST',body:new URLSearchParams({accion:'anular'})})
+    .then(r=>r.json()).then(j=>{
+      if(!j.ok) alert('Error: '+j.error);
+      else alert('Última importación anulada.');
+      fetchHistorial();
+    });
 });
+
+window.addEventListener('DOMContentLoaded', fetchHistorial);
 </script>
-
 </body>
 </html>

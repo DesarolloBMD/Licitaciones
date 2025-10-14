@@ -2,159 +2,217 @@
 // api/subir_procedimientos.php
 declare(strict_types=1);
 
-@ini_set('memory_limit','1024M');
+@ini_set('memory_limit', '1024M');
 @set_time_limit(0);
-
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 
-/* ===========================================================
-   🔹 CONEXIÓN A LA BASE DE DATOS
-   =========================================================== */
+// ======================================
+// CONFIGURACIÓN DE CONEXIÓN A LA BASE
+// ======================================
 $DATABASE_URL = 'postgresql://licitaciones_bmd_user:vFgswY5U7MaSqqexdhjgAE5M9fBpT2OQ@dpg-d3g2v7j3fgac73c4eek0-a.oregon-postgres.render.com:5432/licitaciones_bmd?sslmode=require';
 
 try {
   $p = parse_url($DATABASE_URL);
-  $dsn = sprintf('pgsql:host=%s;port=%d;dbname=%s;sslmode=require',
-    $p['host'], $p['port'] ?? 5432, ltrim($p['path'],'/'));
+  $dsn = sprintf(
+    'pgsql:host=%s;port=%d;dbname=%s;sslmode=require',
+    $p['host'],
+    $p['port'] ?? 5432,
+    ltrim($p['path'], '/')
+  );
   $pdo = new PDO($dsn, $p['user'], $p['pass'], [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
   ]);
-  $pdo->exec("SET datestyle TO 'ISO, DMY'");
 } catch (Throwable $e) {
-  echo json_encode(['ok'=>false, 'error'=>'Error de conexión: '.$e->getMessage()]);
+  http_response_code(500);
+  echo json_encode(['ok' => false, 'error' => 'Error de conexión: ' . $e->getMessage()]);
   exit;
 }
 
-/* ===========================================================
-   🔹 VALIDAR ARCHIVO SUBIDO
-   =========================================================== */
+// ======================================
+// HELPERS
+// ======================================
+function limpiar_encabezado(?string $s): string {
+  if ($s === null) return '';
+  $s = trim($s);
+  $s = str_replace(["\xEF\xBB\xBF", "\xC2\xA0"], '', $s); // eliminar BOM y espacios raros
+  return preg_replace('/\s+/u', ' ', $s);
+}
+
+function convertir_utf8(string $s): string {
+  if (mb_detect_encoding($s, 'UTF-8', true)) return $s;
+  return mb_convert_encoding($s, 'UTF-8', 'ISO-8859-1, Windows-1252');
+}
+
+function normalizar_numero(string $s): ?float {
+  $s = trim(str_replace([' ', ' '], '', $s)); // elimina espacios y no-break spaces
+  $s = str_replace(',', '.', $s);
+  return is_numeric($s) ? (float)$s : null;
+}
+
+function normalizar_fecha(?string $s): ?string {
+  if (!$s) return null;
+  $s = trim($s);
+  $s = str_ireplace(
+    ['lunes,','martes,','miércoles,','jueves,','viernes,','sábado,','domingo,'],
+    '', $s
+  );
+  $s = trim($s);
+  $ts = strtotime($s);
+  return $ts ? date('Y-m-d', $ts) : null;
+}
+
+function uuid(): string {
+  $d = random_bytes(16);
+  $d[6] = chr(ord($d[6]) & 0x0f | 0x40);
+  $d[8] = chr(ord($d[8]) & 0x3f | 0x80);
+  return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($d), 4));
+}
+
+// ======================================
+// CREAR TABLA DE LOGS SI NO EXISTE
+// ======================================
+$pdo->exec('CREATE TABLE IF NOT EXISTS public.importaciones_log (
+  import_id UUID PRIMARY KEY,
+  filename TEXT,
+  total_rows INTEGER DEFAULT 0,
+  inserted INTEGER DEFAULT 0,
+  skipped INTEGER DEFAULT 0,
+  started_at TIMESTAMPTZ DEFAULT now(),
+  finished_at TIMESTAMPTZ,
+  anulado_at TIMESTAMPTZ,
+  source_ip TEXT
+)');
+
+// ======================================
+// ENDPOINT: HISTORIAL Y ANULAR
+// ======================================
+if (isset($_GET['accion']) && $_GET['accion'] === 'logs') {
+  $rows = $pdo->query('SELECT * FROM public.importaciones_log ORDER BY started_at DESC LIMIT 50')->fetchAll();
+  echo json_encode(['ok' => true, 'logs' => $rows]);
+  exit;
+}
+
+if (isset($_POST['accion']) && $_POST['accion'] === 'anular') {
+  $id = $_POST['import_id'] ?? '';
+  if ($id === '') {
+    echo json_encode(['ok' => false, 'error' => 'Falta import_id']);
+    exit;
+  }
+  try {
+    $pdo->beginTransaction();
+    $pdo->prepare('DELETE FROM public."Procedimientos Adjudicados" WHERE import_id = :id')->execute([':id' => $id]);
+    $pdo->prepare('UPDATE public.importaciones_log SET anulado_at = now() WHERE import_id = :id')->execute([':id' => $id]);
+    $pdo->commit();
+    echo json_encode(['ok' => true, 'anulado' => $id]);
+  } catch (Throwable $e) {
+    $pdo->rollBack();
+    echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+  }
+  exit;
+}
+
+// ======================================
+// ENDPOINT: IMPORTAR CSV/XLSX
+// ======================================
 if (!isset($_FILES['archivo']) || $_FILES['archivo']['error'] !== UPLOAD_ERR_OK) {
-  echo json_encode(['ok'=>false, 'error'=>'Archivo no recibido']);
+  echo json_encode(['ok' => false, 'error' => 'Archivo no recibido']);
   exit;
 }
 
 $name = $_FILES['archivo']['name'];
-$tmp  = $_FILES['archivo']['tmp_name'];
-$ext  = strtolower(pathinfo($name, PATHINFO_EXTENSION));
-
-if (!in_array($ext, ['csv','xlsx'], true)) {
-  echo json_encode(['ok'=>false,'error'=>'Solo se permiten archivos .csv o .xlsx']);
+$tmp = $_FILES['archivo']['tmp_name'];
+$ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+if (!in_array($ext, ['csv', 'xlsx'])) {
+  echo json_encode(['ok' => false, 'error' => 'Formato no permitido (.csv o .xlsx)']);
   exit;
 }
 
-/* ===========================================================
-   🔹 LEER ARCHIVO (CSV o XLSX)
-   =========================================================== */
-$rows = [];
-try {
-  if ($ext === 'csv') {
-    $fh = fopen($tmp, 'r');
-    $firstLine = fgets($fh);
-    rewind($fh);
-
-    $delims = ["," => substr_count($firstLine, ","), ";" => substr_count($firstLine, ";"), "\t" => substr_count($firstLine, "\t")];
-    arsort($delims);
-    $delim = array_key_first($delims);
-
-    while (($data = fgetcsv($fh, 0, $delim)) !== false) {
-      $rows[] = $data;
-    }
-    fclose($fh);
-  } else {
-    // XLSX — requiere PhpSpreadsheet
-    require_once __DIR__.'/../vendor/autoload.php';
-    $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
-    $spreadsheet = $reader->load($tmp);
-    $sheet = $spreadsheet->getActiveSheet();
-    foreach ($sheet->toArray() as $row) {
-      $rows[] = $row;
-    }
-  }
-} catch (Throwable $e) {
-  echo json_encode(['ok'=>false, 'error'=>'Error leyendo archivo: '.$e->getMessage()]);
+// Solo procesaremos CSV por ahora (los XLSX se pueden convertir con Excel)
+$fh = fopen($tmp, 'r');
+if (!$fh) {
+  echo json_encode(['ok' => false, 'error' => 'No se pudo abrir el archivo']);
   exit;
 }
 
-if (count($rows) < 2) {
-  echo json_encode(['ok'=>false,'error'=>'El archivo está vacío o sin encabezados.']);
-  exit;
-}
+// Detectar delimitador
+$first = fgets($fh);
+rewind($fh);
+$delims = [";" => substr_count($first, ";"), "\t" => substr_count($first, "\t"), "," => substr_count($first, ",")];
+arsort($delims);
+$delim = array_key_first($delims) ?: ";";
 
-/* ===========================================================
-   🔹 VALIDAR ENCABEZADOS
-   =========================================================== */
-$headers = array_map('trim', $rows[0]);
-$expected = [
-  'Mes de Descarga','Año de reporte','CEDULA','INSTITUCION','ANO','NUMERO_PROCEDIMIENTO',
-  'DESCR_PROCEDIMIENTO','LINEA','NRO_SICOP','TIPO_PROCEDIMIENTO','MODALIDAD_PROCEDIMIENTO','fecha_rev',
-  'CEDULA_PROVEEDOR','NOMBRE_PROVEEDOR','PERFIL_PROV','CEDULA_REPRESENTANTE','REPRESENTANTE','OBJETO_GASTO',
-  'MONEDA_ADJUDICADA','MONTO_ADJU_LINEA','MONTO_ADJU_LINEA_CRC','MONTO_ADJU_LINEA_USD','FECHA_ADJUD_FIRME',
-  'FECHA_SOL_CONTRA','PROD_ID','DESCR_BIEN_SERVICIO','CANTIDAD','UNIDAD_MEDIDA','MONTO_UNITARIO',
-  'MONEDA_PRECIO_EST','FECHA_SOL_CONTRA_CL','PROD_ID_CL'
-];
+// Leer encabezados
+$headers = fgetcsv($fh, 0, $delim);
+$headers = array_map('limpiar_encabezado', $headers);
 
-$diff = array_diff($expected, $headers);
-if ($diff) {
-  echo json_encode(['ok'=>false,'error'=>'Encabezados no coinciden','faltan'=>$diff]);
-  exit;
-}
+$import_id = uuid();
+$ip = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '';
 
-/* ===========================================================
-   🔹 INSERTAR EN LA BASE
-   =========================================================== */
-$insertados = 0;
-$saltados = 0;
-$errores = [];
+$pdo->prepare('INSERT INTO public.importaciones_log(import_id,filename,source_ip,started_at)
+               VALUES(:i,:f,:ip,now())')->execute([':i' => $import_id, ':f' => $name, ':ip' => $ip]);
+
+$total = 0;
+$inserted = 0;
+$skipped = 0;
+
+$pdo->beginTransaction();
 
 try {
-  $pdo->beginTransaction();
+  while (($row = fgetcsv($fh, 0, $delim)) !== false) {
+    $total++;
+    if (count(array_filter($row)) == 0) { $skipped++; continue; }
 
-  $colsSql = '"' . implode('","', $expected) . '"';
-  $placeSql = implode(',', array_map(fn($c)=>':'.preg_replace('/\W+/','_', strtolower($c)), $expected));
-
-  $sql = "INSERT INTO public.\"Procedimientos Adjudicados\" ($colsSql)
-          VALUES ($placeSql)";
-  $stmt = $pdo->prepare($sql);
-
-  for ($i=1; $i < count($rows); $i++) {
-    $row = $rows[$i];
-    if (count(array_filter($row)) === 0) continue;
-
-    $params = [];
-    foreach ($expected as $idx=>$key) {
-      $ph = ':'.preg_replace('/\W+/','_', strtolower($key));
-      $params[$ph] = isset($row[$idx]) ? trim((string)$row[$idx]) : null;
+    $data = [];
+    foreach ($headers as $i => $h) {
+      $val = $row[$i] ?? null;
+      $val = convertir_utf8((string)$val);
+      if (preg_match('/FECHA/i', $h)) $val = normalizar_fecha($val);
+      elseif (preg_match('/MONTO|CANTIDAD|ID$/i', $h)) $val = normalizar_numero($val);
+      $data[$h] = $val;
     }
+
+    $cols = array_map(fn($h) => '"' . $h . '"', array_keys($data));
+    $placeholders = array_map(fn($h) => ':' . preg_replace('/\W+/', '_', strtolower($h)), array_keys($data));
+    $sql = 'INSERT INTO public."Procedimientos Adjudicados" (' . implode(',', $cols) . ', import_id)
+            VALUES (' . implode(',', $placeholders) . ', :import_id)';
+    $stmt = $pdo->prepare($sql);
+
+    foreach ($data as $h => $v) {
+      $stmt->bindValue(':' . preg_replace('/\W+/', '_', strtolower($h)), $v);
+    }
+    $stmt->bindValue(':import_id', $import_id);
 
     try {
-      $stmt->execute($params);
-      $insertados++;
+      $stmt->execute();
+      $inserted += $stmt->rowCount();
     } catch (Throwable $e) {
-      $saltados++;
-      if (count($errores) < 10) $errores[] = "Fila $i: ".$e->getMessage();
+      $skipped++;
     }
   }
-
   $pdo->commit();
-
 } catch (Throwable $e) {
   $pdo->rollBack();
-  echo json_encode(['ok'=>false,'error'=>'Error durante inserción: '.$e->getMessage()]);
+  echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
   exit;
 }
 
-/* ===========================================================
-   🔹 RESPUESTA FINAL
-   =========================================================== */
+fclose($fh);
+
+$pdo->prepare('UPDATE public.importaciones_log
+               SET total_rows = :t, inserted = :i, skipped = :s, finished_at = now()
+               WHERE import_id = :id')->execute([
+                 ':t' => $total, ':i' => $inserted, ':s' => $skipped, ':id' => $import_id
+               ]);
+
 echo json_encode([
-  'ok'=>true,
-  'insertados'=>$insertados,
-  'saltados'=>$saltados,
-  'errores'=>$errores,
-  'total'=>count($rows)-1
-], JSON_UNESCAPED_UNICODE);
+  'ok' => true,
+  'import_id' => $import_id,
+  'insertados' => $inserted,
+  'saltados' => $skipped,
+  'total' => $total
+]);
+?>
