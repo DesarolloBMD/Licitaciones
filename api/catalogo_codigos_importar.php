@@ -1,201 +1,193 @@
-<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Catálogo de Códigos — Importar</title>
+<?php
+// api/procedimientos_importar.php
+declare(strict_types=1);
 
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <style>
-    :root{ --acento:#0B4912; }
-    body{ background:#0b0f24; color:#eaf2ff; }
-    .hero{ background:linear-gradient(180deg,#0b0f24 0%, #0e132c 100%); color:#eaf2ff; padding:40px 0 48px; }
-    .glass{ background:#fff; border:1px solid rgba(0,0,0,.06); border-radius:18px; box-shadow:0 10px 30px rgba(0,0,0,.08); color:#0e1b2a; }
-    .btn-acento{ background:var(--acento); color:#fff; border:none; }
-    .btn-acento:hover{ filter:brightness(1.05); color:#fff; }
-    .small-muted{ color:#6b7b91; font-size:.9rem; }
-    code{ background:#f3f6fa; padding:.15rem .35rem; border-radius:.35rem; }
-    .progress{ height:8px; }
-    pre.mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; white-space:pre-wrap; }
-  </style>
-</head>
-<body>
+@ini_set('memory_limit','1024M');
+@set_time_limit(0);
 
-<header class="hero">
-  <div class="container">
-    <h1 class="h4 m-0">Importar “Catálogo de Códigos”</h1>
-    <div class="text-white-50 small">
-      Cargue un archivo <code>.csv</code>, <code>.tsv</code> o <code>.txt</code> con encabezados:
-      <code>Tipo de Clasificación</code>, <code>Codigo de Clasificación</code>, <code>Descripción de Clasificación</code>.
-    </div>
-  </div>
-</header>
+/* ======== CORS ======== */
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+if ($method === 'OPTIONS') { http_response_code(204); exit; }
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type');
+header('Content-Type: application/json; charset=utf-8');
 
-<main class="container" style="margin-top:-28px;margin-bottom:64px;">
-  <!-- CARGA -->
-  <div class="glass p-3 p-lg-4 mb-4">
-    <form id="frm" class="vstack gap-3" enctype="multipart/form-data">
-      <div class="row g-3">
-        <div class="col-12 col-lg-8">
-          <label class="form-label">Archivo (.csv, .tsv o .txt)</label>
-          <input class="form-control" type="file" name="archivo" id="archivo" accept=".csv,.tsv,.txt" required />
-          <div class="form-text small-muted">
-            Separador soportado: <code>,</code>, <code>;</code> o <code>(tab)</code> (auto-detectado).
-          </div>
-        </div>
-        <div class="col-12 col-lg-4 d-flex align-items-end">
-          <button class="btn btn-acento w-100" id="btnEnviar" type="submit">
-            Subir e importar
-          </button>
-        </div>
-      </div>
-
-      <div class="d-none" id="pgwrap">
-        <div class="d-flex justify-content-between align-items-center mb-1">
-          <small class="text-muted">Progreso</small>
-          <small class="text-muted" id="pct">0%</small>
-        </div>
-        <div class="progress">
-          <div class="progress-bar bg-success" id="bar" style="width:0%"></div>
-        </div>
-      </div>
-
-      <div id="msg" class="small"></div>
-      <div id="res" class="mt-2 small"></div>
-      <pre id="raw" class="mono small d-none p-2 bg-light border rounded"></pre>
-    </form>
-  </div>
-
-  <!-- HISTORIAL -->
-  <div class="glass p-3 p-lg-4">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <h2 class="h6 m-0">Historial de importaciones</h2>
-      <button class="btn btn-sm btn-outline-primary" id="btnReload">Actualizar</button>
-    </div>
-    <div class="table-responsive">
-      <table class="table table-sm align-middle">
-        <thead>
-          <tr>
-            <th style="min-width:160px;">Fecha</th>
-            <th>Archivo</th>
-            <th class="text-end">Filas</th>
-            <th class="text-end">Insert/Upd</th>
-            <th class="text-end">Saltadas</th>
-            <th>Estado</th>
-            <th class="text-end">Acciones</th>
-          </tr>
-        </thead>
-        <tbody id="logs">
-          <tr><td colspan="7" class="text-muted">Cargando…</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</main>
-
-<script>
-  const ENDPOINT = 'api/catalogo_codigos_importar.php'; // tu endpoint PHP
-  const $ = (s,d=document)=>d.querySelector(s);
-
-  let controller=null, fakeTimer=null;
-
-  function esc(s){ return (s??'').toString().replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
-  function setProgress(p){ $('#pgwrap').classList.remove('d-none'); $('#bar').style.width=p+'%'; $('#pct').textContent=p+'%'; }
-  function startFakeProgress(){
-    let p=5; setProgress(p);
-    fakeTimer=setInterval(()=>{ p=Math.min(p+Math.random()*4+1,85); setProgress(Math.round(p)); if(p>=85){clearInterval(fakeTimer); fakeTimer=null;} }, 350);
+/* ======== Manejador de errores ======== */
+ob_start();
+set_error_handler(function($s,$m,$f,$l){ throw new ErrorException($m,0,$s,$f,$l); });
+register_shutdown_function(function(){
+  $err = error_get_last();
+  if ($err && in_array($err['type'],[E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR])){
+    http_response_code(500);
+    echo json_encode([
+      'ok'=>false,
+      'error'=>'Fallo fatal: '.$err['message'].' @ '.$err['file'].':'.$err['line']
+    ],JSON_UNESCAPED_UNICODE);
   }
-  function stopFakeProgress(){ if(fakeTimer){ clearInterval(fakeTimer); fakeTimer=null; } }
+});
 
-  async function loadLogs(){
-    try{
-      const r = await fetch(`${ENDPOINT}?accion=logs`);
-      const j = await r.json();
-      const tb = $('#logs');
-      if(!j.ok){ tb.innerHTML = `<tr><td colspan="7" class="text-danger">Error: ${esc(j.error||'')}</td></tr>`; return; }
-      if(!j.logs.length){ tb.innerHTML = `<tr><td colspan="7" class="text-muted">Sin importaciones aún.</td></tr>`; return; }
-      tb.innerHTML = j.logs.map(row=>{
-        const estado = row.anulado_at ? `<span class="badge bg-secondary">Anulado</span>` : `<span class="badge bg-success">Activo</span>`;
-        const fecha  = row.started_at ? new Date(row.started_at).toLocaleString() : '';
-        const btn = row.anulado_at
-          ? `<button class="btn btn-sm btn-outline-secondary" disabled>Anulado</button>`
-          : `<button class="btn btn-sm btn-outline-danger" data-id="${row.import_id}" onclick="anular(this)">Anular</button>`;
-        return `<tr>
-          <td>${esc(fecha)}</td>
-          <td>${esc(row.filename||'')}</td>
-          <td class="text-end">${row.total_rows ?? ''}</td>
-          <td class="text-end">${row.inserted ?? ''}</td>
-          <td class="text-end">${row.skipped ?? ''}</td>
-          <td>${estado}</td>
-          <td class="text-end">${btn}</td>
-        </tr>`;
-      }).join('');
-    }catch(e){
-      $('#logs').innerHTML = `<tr><td colspan="7" class="text-danger">Error al cargar: ${esc(e.message||String(e))}</td></tr>`;
+/* ======== Conexión ======== */
+$DATABASE_URL = getenv('DATABASE_URL');
+if (!$DATABASE_URL || stripos($DATABASE_URL,'postgres')===false){
+  $DATABASE_URL = 'postgresql://licitaciones_bmd_user:vFgswY5U7MaSqqexdhjgAE5M9fBpT2OQ@dpg-d3g2v7j3fgac73c4eek0-a.oregon-postgres.render.com:5432/licitaciones_bmd?sslmode=require';
+}
+try {
+  $p=parse_url($DATABASE_URL);
+  $dsn=sprintf('pgsql:host=%s;port=%d;dbname=%s;sslmode=require',$p['host'],$p['port']??5432,ltrim($p['path'],'/'));
+  $pdo=new PDO($dsn,$p['user'],$p['pass'],[
+    PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,
+    PDO::ATTR_EMULATE_PREPARES=>true
+  ]);
+  $pdo->exec("SET TIME ZONE 'UTC'");
+} catch(Throwable $e){
+  echo json_encode(['ok'=>false,'error'=>'Error de conexión: '.$e->getMessage()],JSON_UNESCAPED_UNICODE);
+  exit;
+}
+
+/* ======== Helpers ======== */
+function to_utf8($s){ if(!$s)return''; if(mb_detect_encoding($s,'UTF-8',true))return $s; return mb_convert_encoding($s,'UTF-8','auto'); }
+function norm_header($s){ $s=to_utf8($s); $s=preg_replace('/^\xEF\xBB\xBF/','',$s); return trim(preg_replace('/\s+/u',' ',$s)); }
+function new_uuid():string{ $d=random_bytes(16);$d[6]=chr(ord($d[6])&0x0f|0x40);$d[8]=chr(ord($d[8])&0x3f|0x80);return vsprintf('%s%s-%s-%s-%s-%s%s%s',str_split(bin2hex($d),4)); }
+
+/* ======== Crear tablas ======== */
+$pdo->exec('CREATE TABLE IF NOT EXISTS public.procedimientos_import_log(
+  import_id  UUID PRIMARY KEY,
+  filename   TEXT,
+  total_rows INTEGER,
+  inserted   INTEGER,
+  skipped    INTEGER,
+  started_at TIMESTAMPTZ DEFAULT now(),
+  finished_at TIMESTAMPTZ,
+  anulado_at TIMESTAMPTZ,
+  source_ip  TEXT
+)');
+
+$pdo->exec('ALTER TABLE public."Procedimientos Adjudicados"
+  ADD COLUMN IF NOT EXISTS fingerprint TEXT,
+  ADD COLUMN IF NOT EXISTS import_id UUID,
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now()');
+
+/* ======== Endpoint de logs ======== */
+if (isset($_GET['accion']) && $_GET['accion']==='logs') {
+  try {
+    $rows = $pdo->query('SELECT * FROM public.procedimientos_import_log ORDER BY started_at DESC LIMIT 100')->fetchAll();
+    echo json_encode(['ok'=>true,'logs'=>$rows], JSON_UNESCAPED_UNICODE);
+  } catch(Throwable $e) {
+    echo json_encode(['ok'=>false,'error'=>$e->getMessage()], JSON_UNESCAPED_UNICODE);
+  }
+  exit;
+}
+
+/* ======== Fingerprint ======== */
+function build_fingerprint(array $t): string {
+  return md5(implode('|',[
+    $t['Mes de Descarga']??'',
+    $t['Año de reporte']??'',
+    $t['CEDULA']??'',
+    $t['INSTITUCION']??'',
+    $t['NUMERO_PROCEDIMIENTO']??'',
+    $t['LINEA']??'',
+    $t['CEDULA_PROVEEDOR']??'',
+    $t['NOMBRE_PROVEEDOR']??'',
+    $t['MONTO_ADJU_LINEA_CRC']??''
+  ]));
+}
+
+/* ======== Validar archivo ======== */
+if (!isset($_FILES['archivo']) || $_FILES['archivo']['error']!==UPLOAD_ERR_OK){
+  echo json_encode(['ok'=>false,'error'=>'Archivo no recibido (campo "archivo")'],JSON_UNESCAPED_UNICODE);
+  exit;
+}
+$name=$_FILES['archivo']['name'];
+$tmp=$_FILES['archivo']['tmp_name'];
+$ext=strtolower(pathinfo($name,PATHINFO_EXTENSION));
+if(!in_array($ext,['csv','txt','tsv'],true)){
+  echo json_encode(['ok'=>false,'error'=>'Formato no permitido (.csv o .txt)'],JSON_UNESCAPED_UNICODE);
+  exit;
+}
+
+/* ======== Detectar delimitador ======== */
+$fh=fopen($tmp,'r');
+if(!$fh){ echo json_encode(['ok'=>false,'error'=>'No se pudo abrir el archivo']); exit; }
+$first=fgets($fh); rewind($fh);
+$delims=[","=>substr_count($first,","),";"=>substr_count($first,";"),"\t"=>substr_count($first,"\t"),"|"=>substr_count($first,"|")];
+arsort($delims);
+$delim=array_key_first($delims) ?: ";";
+
+/* ======== Leer encabezados ======== */
+$headers=fgetcsv($fh,0,$delim);
+if(!$headers){ echo json_encode(['ok'=>false,'error'=>'No se pudieron leer encabezados']); exit; }
+$headers=array_map(fn($h)=>trim(preg_replace('/^\xEF\xBB\xBF/','',norm_header($h))),$headers);
+
+/* ======== Verificar columnas válidas ======== */
+$colsBD = $pdo->query("SELECT column_name FROM information_schema.columns WHERE table_name = 'Procedimientos Adjudicados'")->fetchAll(PDO::FETCH_COLUMN);
+$headers = array_values(array_intersect($headers, $colsBD));
+if (empty($headers)) {
+  echo json_encode(['ok'=>false,'error'=>'Encabezados no coinciden con columnas de la tabla'],JSON_UNESCAPED_UNICODE);
+  exit;
+}
+
+/* ======== Registrar log ======== */
+$import_id=new_uuid();
+$ip=$_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '';
+$log=$pdo->prepare('INSERT INTO public.procedimientos_import_log(import_id,filename,total_rows,inserted,skipped,started_at,source_ip)
+                    VALUES(:id,:fn,0,0,0,now(),:ip)');
+$log->execute([':id'=>$import_id,':fn'=>$name,':ip'=>$ip]);
+
+/* ======== Preparar SQL dinámico ======== */
+$cols=array_map(fn($h)=>'"'.$h.'"',$headers);
+$params=array_map(fn($h)=>':'.preg_replace('/\W+/','_',strtolower($h)),$headers);
+$sql='INSERT INTO public."Procedimientos Adjudicados"('.implode(',',$cols).',fingerprint,import_id,created_at,updated_at)
+      VALUES('.implode(',',$params).',:finger,:imp,now(),now())
+      ON CONFLICT (fingerprint) DO NOTHING';
+$stmt=$pdo->prepare($sql);
+
+/* ======== Importar ======== */
+$total=0; $inserted=0; $skipped=0;
+$pdo->beginTransaction();
+try{
+  while(($r=fgetcsv($fh,0,$delim))!==false){
+    if(count(array_filter($r))==0) continue;
+    $total++;
+    if(count($r)!=count($headers)){ $skipped++; continue; }
+    $row=array_combine($headers,$r);
+    $finger=build_fingerprint($row);
+    $bind=[];
+    foreach($headers as $h){
+      $ph=':'.preg_replace('/\W+/','_',strtolower($h));
+      $val=trim((string)($row[$h]??''));
+      $bind[$ph]=$val===''?null:$val;
     }
-  }
-
-  async function anular(btn){
-    const id = btn.getAttribute('data-id');
-    if(!confirm('¿Anular esta importación? Se eliminarán solo las filas de ese archivo.')) return;
-    btn.disabled = true;
-    const fd = new FormData(); fd.append('accion','anular'); fd.append('import_id', id);
-    const r = await fetch(ENDPOINT, {method:'POST', body:fd});
-    const j = await r.json();
-    if(!j.ok) alert('Error: '+(j.error||''));
-    await loadLogs();
-  }
-
-  $('#btnReload').addEventListener('click', loadLogs);
-
-  // Envío del archivo
-  $('#frm').addEventListener('submit', async (e)=>{
-    e.preventDefault();
-    const file = $('#archivo').files[0];
-    if(!file){ $('#msg').textContent = 'Seleccione un archivo.'; return; }
-    const fd = new FormData(); fd.append('archivo', file);
-
-    controller = new AbortController();
-    $('#btnEnviar').disabled = true;
-    $('#msg').textContent = 'Subiendo…';
-    $('#res').textContent = '';
-    $('#raw').classList.add('d-none');
-    startFakeProgress();
-
+    $bind[':finger']=$finger;
+    $bind[':imp']=$import_id;
     try{
-      const r = await fetch(ENDPOINT, { method:'POST', body: fd, signal: controller.signal });
-      stopFakeProgress(); setProgress(100);
+      $stmt->execute($bind);
+      $inserted+=$stmt->rowCount();
+    }catch(Throwable $e){ $skipped++; }
+  }
+  $pdo->commit();
+}catch(Throwable $e){
+  $pdo->rollBack();
+  echo json_encode(['ok'=>false,'error'=>'Error en importación: '.$e->getMessage()],JSON_UNESCAPED_UNICODE);
+  exit;
+}
+fclose($fh);
 
-      // Lectura tolerante a no-JSON
-      const raw = await r.text();
-      let j; try{ j = JSON.parse(raw); } catch{ j = { ok:false, error: raw }; }
+/* ======== Actualizar log ======== */
+$upd=$pdo->prepare('UPDATE public.procedimientos_import_log
+                    SET total_rows=:t,inserted=:i,skipped=:s,finished_at=now()
+                    WHERE import_id=:id');
+$upd->execute([':t'=>$total,':i'=>$inserted,':s'=>$skipped,':id'=>$import_id]);
 
-      if(!r.ok || !j.ok){
-        $('#msg').innerHTML = '⚠ ' + esc(j.error || 'Error desconocido');
-        $('#raw').classList.remove('d-none');
-        $('#raw').textContent = raw;
-        return;
-      }
-
-      $('#msg').innerHTML = '✅ Importación completada';
-      $('#res').innerHTML =
-        `<div class="alert alert-success mt-2">
-           Insert/Upd: <strong>${j.insertados}</strong> — Saltadas: <strong>${j.saltados}</strong> — Total leídas: <strong>${j.total}</strong>
-         </div>`;
-
-      await loadLogs();
-
-    }catch(err){
-      stopFakeProgress();
-      $('#msg').textContent = '⚠ ' + (err.message || String(err));
-    }finally{
-      $('#btnEnviar').disabled = false;
-      controller = null;
-    }
-  });
-
-  // Inicial
-  loadLogs();
-</script>
-</body>
-</html>
+/* ======== Respuesta final ======== */
+echo json_encode([
+  'ok'=>true,
+  'import_id'=>$import_id,
+  'insertados'=>$inserted,
+  'saltados'=>$skipped,
+  'total'=>$total
+],JSON_UNESCAPED_UNICODE);
+?>
