@@ -6,7 +6,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 
 /* ============================================================
-   1. Conexión a la base de datos
+   1. Conexión a PostgreSQL
    ============================================================ */
 $DATABASE_URL = getenv('DATABASE_URL') ?: 'postgresql://licitaciones_bmd_user:vFgswY5U7MaSqqexdhjgAE5M9fBpT2OQ@dpg-d3g2v7j3fgac73c4eek0-a.oregon-postgres.render.com:5432/licitaciones_bmd?sslmode=require';
 try {
@@ -52,7 +52,7 @@ if (!$mes_descarga || !$anio_descarga) {
 }
 
 /* ============================================================
-   4. Leer CSV
+   4. Leer CSV con detección automática de delimitador
    ============================================================ */
 $nombre = $_FILES['archivo']['name'];
 $tmp = $_FILES['archivo']['tmp_name'];
@@ -62,14 +62,23 @@ if (!$fh) {
   exit;
 }
 
-$header = fgetcsv($fh, 0, ',');
+$firstLine = fgets($fh);
+rewind($fh);
+$counts = [
+  ','  => substr_count($firstLine, ','),
+  ';'  => substr_count($firstLine, ';'),
+  "\t" => substr_count($firstLine, "\t"),
+];
+arsort($counts);
+$delimiter = key($counts);
+$header = fgetcsv($fh, 0, $delimiter);
 if (!$header) {
   echo json_encode(['ok' => false, 'error' => 'Archivo vacío o sin encabezados']);
   exit;
 }
 
 /* ============================================================
-   5. Encabezados esperados → columnas en base
+   5. Mapear encabezados del CSV → columnas en la base
    ============================================================ */
 $mapa = [
   'CEDULA' => 'cedula',
@@ -105,7 +114,7 @@ $mapa = [
 ];
 
 /* Validar encabezados */
-$csv_cols = array_map('trim', $header);
+$csv_cols = array_map(fn($h) => trim(str_replace(["\xEF\xBB\xBF", "\r", "\n"], '', $h)), $header);
 $faltan = array_diff(array_keys($mapa), $csv_cols);
 $sobran = array_diff($csv_cols, array_keys($mapa));
 if ($faltan || $sobran) {
@@ -119,7 +128,7 @@ if ($faltan || $sobran) {
 }
 
 /* ============================================================
-   6. Preparar inserción
+   6. Inserción de datos
    ============================================================ */
 $cols_pg = array_map(fn($c) => $mapa[$c], $csv_cols);
 $import_id = uniqid('imp_');
@@ -132,7 +141,7 @@ $saltados = 0;
 $errores = [];
 $pdo->beginTransaction();
 
-while (($r = fgetcsv($fh, 0, ',')) !== false) {
+while (($r = fgetcsv($fh, 0, $delimiter)) !== false) {
   if (count(array_filter($r, fn($x) => trim((string)$x) !== '')) == 0) continue;
   $valores = array_merge([$import_id, $mes_descarga, $anio_descarga], $r);
   try { $stmt->execute($valores); $insertados++; }
