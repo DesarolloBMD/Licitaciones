@@ -11,7 +11,7 @@ header('Content-Type: application/json; charset=utf-8');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 
-/* ======== Conexión ======== */
+/* ======== Conexión a Postgres ======== */
 $DATABASE_URL = 'postgresql://licitaciones_bmd_user:vFgswY5U7MaSqqexdhjgAE5M9fBpT2OQ@dpg-d3g2v7j3fgac73c4eek0-a.oregon-postgres.render.com:5432/licitaciones_bmd?sslmode=require';
 try {
   $p=parse_url($DATABASE_URL);
@@ -25,23 +25,22 @@ try {
   exit;
 }
 
-/* ======== Utilidades ======== */
+/* ======== Helpers ======== */
 function limpiar_encabezado(?string $s): string {
-  $s = trim((string)$s);
-  $s = preg_replace('/^\xEF\xBB\xBF/', '', $s);
-  return $s;
+  if ($s === null) return '';
+  $s = trim(preg_replace('/^\xEF\xBB\xBF/','', $s));
+  return mb_convert_encoding($s, 'UTF-8', 'auto');
 }
 
 function normalizar_texto(?string $s): string {
   if ($s === null) return '';
-  $s = trim($s);
-  $s = mb_convert_encoding($s, 'UTF-8', 'auto');
-  return $s;
+  return trim(mb_convert_encoding($s, 'UTF-8', 'auto'));
 }
 
 function normalizar_numero(?string $s): ?string {
   if (!$s) return null;
-  $s = str_replace([' ', ',', '₡', '$'], ['', '.', '', ''], $s);
+  $s = str_replace([' ', '₡', '$'], '', $s);
+  $s = str_replace(',', '.', $s);
   $s = preg_replace('/[^0-9.\-]/', '', $s);
   return $s === '' ? null : $s;
 }
@@ -85,7 +84,7 @@ if (!in_array($ext, ['csv','xlsx'], true)) {
   exit;
 }
 
-/* ======== Procesar CSV ======== */
+/* ======== Leer CSV ======== */
 $fh = fopen($tmp, 'r');
 if (!$fh) { echo json_encode(['ok'=>false,'error'=>'No se pudo abrir el archivo']); exit; }
 $firstLine = fgets($fh); rewind($fh);
@@ -94,24 +93,31 @@ arsort($delims); $delim = array_key_first($delims) ?: ";";
 $headers = fgetcsv($fh, 0, $delim);
 $headers = array_map('limpiar_encabezado', $headers);
 
-$total = 0; $inserted = 0; $skipped = 0; $errors = [];
-
+/* ======== Preparar inserción ======== */
 $sql = 'INSERT INTO public."Procedimientos Adjudicados"
-  ("Mes de Descarga","Año de reporte","CEDULA","INSTITUCION","ANO","NUMERO_PROCEDIMIENTO","DESCR_PROCEDIMIENTO","LINEA","NRO_SICOP",
-   "TIPO_PROCEDIMIENTO","MODALIDAD_PROCEDIMIENTO","fecha_rev","CEDULA_PROVEEDOR","NOMBRE_PROVEEDOR","PERFIL_PROV","CEDULA_REPRESENTANTE",
-   "REPRESENTANTE","OBJETO_GASTO","MONEDA_ADJUDICADA","MONTO_ADJU_LINEA","MONTO_ADJU_LINEA_CRC","MONTO_ADJU_LINEA_USD",
-   "FECHA_ADJUD_FIRME","FECHA_SOL_CONTRA","PROD_ID","DESCR_BIEN_SERVICIO","CANTIDAD","UNIDAD_MEDIDA","MONTO_UNITARIO","MONEDA_PRECIO_EST",
-   "FECHA_SOL_CONTRA_CL","PROD_ID_CL",fingerprint,import_id,created_at,updated_at)
-  VALUES (:Mes,:Anio_rep,:CED,:INST,:ANO,:NUM,:DESCR,:LINEA,:SICOP,:TIPO,:MODAL,:FREV,:CEDPROV,:NOMPROV,:PERFIL,:CEDREP,:REP,:OBJ,
-          :MONEDA,:MONTOL,:MONTOLC,:MONTOLU,:FADJ,:FSOL,:PROD,:DESCRB,:CANT,:UNIDAD,:MONTOU,:MONEDAE,:FSOLCL,:PRODCL,:FP,:IMP,now(),now())
-  ON CONFLICT (fingerprint) DO NOTHING';
+("Mes de Descarga","Año de reporte","CEDULA","INSTITUCION","ANO","NUMERO_PROCEDIMIENTO","DESCR_PROCEDIMIENTO","LINEA","NRO_SICOP",
+ "TIPO_PROCEDIMIENTO","MODALIDAD_PROCEDIMIENTO","fecha_rev","CEDULA_PROVEEDOR","NOMBRE_PROVEEDOR","PERFIL_PROV","CEDULA_REPRESENTANTE",
+ "REPRESENTANTE","OBJETO_GASTO","MONEDA_ADJUDICADA","MONTO_ADJU_LINEA","MONTO_ADJU_LINEA_CRC","MONTO_ADJU_LINEA_USD",
+ "FECHA_ADJUD_FIRME","FECHA_SOL_CONTRA","PROD_ID","DESCR_BIEN_SERVICIO","CANTIDAD","UNIDAD_MEDIDA","MONTO_UNITARIO","MONEDA_PRECIO_EST",
+ "FECHA_SOL_CONTRA_CL","PROD_ID_CL",fingerprint,import_id,created_at,updated_at)
+ VALUES (:Mes,:Anio_rep,:CED,:INST,:ANO,:NUM,:DESCR,:LINEA,:SICOP,:TIPO,:MODAL,:FREV,:CEDPROV,:NOMPROV,:PERFIL,:CEDREP,:REP,:OBJ,
+         :MONEDA,:MONTOL,:MONTOLC,:MONTOLU,:FADJ,:FSOL,:PROD,:DESCRB,:CANT,:UNIDAD,:MONTOU,:MONEDAE,:FSOLCL,:PRODCL,:FP,:IMP,now(),now())
+ ON CONFLICT (fingerprint) DO NOTHING';
 $stmt = $pdo->prepare($sql);
 
+/* ======== Bucle de importación ======== */
+$total = 0; $inserted = 0; $skipped = 0; $errors = [];
 $import_id = bin2hex(random_bytes(8));
+
 while (($row = fgetcsv($fh, 0, $delim)) !== false) {
   $total++;
+  if (count(array_filter($row)) == 0) continue;
   if (count($row) != count($headers)) { $skipped++; continue; }
+
   $r = array_combine($headers, array_map('normalizar_texto', $row));
+  $fp = build_fingerprint($r);
+  if (!$fp || strlen($fp) < 10) $fp = md5(json_encode($r)); // fallback
+
   try {
     $bind = [
       ':Mes'      => $r['Mes de Descarga'] ?? null,
@@ -146,16 +152,25 @@ while (($row = fgetcsv($fh, 0, $delim)) !== false) {
       ':MONEDAE'  => $r['MONEDA_PRECIO_EST'] ?? null,
       ':FSOLCL'   => normalizar_fecha($r['FECHA_SOL_CONTRA_CL'] ?? null),
       ':PRODCL'   => $r['PROD_ID_CL'] ?? null,
-      ':FP'       => build_fingerprint($r),
+      ':FP'       => $fp,
       ':IMP'      => $import_id
     ];
+
     $stmt->execute($bind);
-    $inserted += $stmt->rowCount();
-  } catch(Throwable $e) {
-    $errors[] = "Línea {$total}: ".$e->getMessage();
+    $rows = $stmt->rowCount();
+    if ($rows === 0) {
+      $skipped++;
+      $errors[] = "Línea {$total}: duplicada (fingerprint ya existe)";
+    } else {
+      $inserted += $rows;
+    }
+
+  } catch (Throwable $e) {
     $skipped++;
+    $errors[] = "Línea {$total}: ".$e->getMessage();
   }
 }
+
 fclose($fh);
 
 echo json_encode([
@@ -164,5 +179,5 @@ echo json_encode([
   'saltados'=>$skipped,
   'total'=>$total,
   'errores'=>$errors
-], JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT);
+], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 ?>
