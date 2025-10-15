@@ -12,34 +12,41 @@
     .btn-acento:hover { filter: brightness(1.1); color: #fff; }
     .progress { height: 8px; border-radius: 10px; }
     pre { background: #f1f3f5; border-radius: 6px; padding: 10px; }
-    .table td, .table th { vertical-align: middle; }
   </style>
 </head>
-<body class="p-3 p-lg-5">
-  <div class="container" style="max-width: 950px;">
+<body class="p-4">
+
+  <div class="container" style="max-width: 900px;">
     <div class="card shadow-sm">
-      <div class="card-body p-4">
+      <div class="card-body">
 
-        <h3 class="text-success mb-3">
-          <i class="bi bi-cloud-upload me-2"></i> Importar Procedimientos Adjudicados (.CSV)
-        </h3>
+        <h4 class="text-success mb-3">
+          <i class="bi bi-cloud-upload me-2"></i>Importar Procedimientos Adjudicados (.CSV)
+        </h4>
 
-        <!-- Encabezados requeridos -->
-        <div class="alert alert-secondary small">
-          <b>Columnas esperadas:</b><br>
-          Mes de Descarga | Año de Descarga | Mes de Adjudicación | Año de Adjudicación | Cédula |
-          Institución | Año | Numero de Procedimiento | Descripción de Procedimiento | Línea |
-          Numero de SICOP | Tipo de Procedimiento | Modalidad de Procedimiento | Fecha Rev |
-          Cédula del Proveedor | Nombre del Proveedor | Perfil del Proveedor | Cédula del Representante |
-          Representante | Objeto Gasto | Moneda Adjudicada | Monto Adjudicado por Línea |
-          Monto Adjudicado por Línea CRC | Monto Adjudicado por Línea USD | Fecha Adjudicación Firma |
-          Fecha Solicitud de Contrato | Producto ID | Descripción del Bien y Servicio |
-          Cantidad | Unidad de Medida | Monto Unitario | Moneda de Precio |
-          Fecha Solicitud de Contrato CL | Producto ID CL
-        </div>
-
-        <!-- Formulario -->
         <form id="frm" enctype="multipart/form-data" class="d-flex flex-column gap-3">
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Mes de Descarga</label>
+              <select name="mes_descarga" id="mes_descarga" class="form-select" required>
+                <option value="">Seleccione...</option>
+                <option>Enero</option><option>Febrero</option><option>Marzo</option>
+                <option>Abril</option><option>Mayo</option><option>Junio</option>
+                <option>Julio</option><option>Agosto</option><option>Septiembre</option>
+                <option>Octubre</option><option>Noviembre</option><option>Diciembre</option>
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Año de Descarga</label>
+              <select name="anio_descarga" id="anio_descarga" class="form-select" required>
+                <option value="">Seleccione...</option>
+                <option>2023</option><option>2024</option><option>2025</option>
+              </select>
+            </div>
+          </div>
+
           <div>
             <label class="form-label">Archivo CSV</label>
             <input type="file" name="archivo" id="archivo" accept=".csv" class="form-control" required>
@@ -66,20 +73,19 @@
 
         <hr>
 
-        <!-- Historial -->
         <h5 class="text-success"><i class="bi bi-clock-history me-2"></i>Historial de importaciones</h5>
         <div class="table-responsive">
           <table class="table table-sm table-hover">
             <thead class="table-light">
               <tr>
                 <th>ID</th>
+                <th>Mes</th>
+                <th>Año</th>
                 <th>Archivo</th>
+                <th>Total</th>
                 <th>Insertados</th>
                 <th>Saltados</th>
-                <th>Total</th>
-                <th>Inicio</th>
-                <th>Fin</th>
-                <th></th>
+                <th>Fecha</th>
               </tr>
             </thead>
             <tbody id="tblBody"><tr><td colspan="8" class="text-center text-muted">Cargando...</td></tr></tbody>
@@ -117,7 +123,7 @@
       const txt = await res.text();
       let data;
       try { data = JSON.parse(txt); } 
-      catch { throw new Error("⚠ Respuesta no válida del servidor:\n" + txt); }
+      catch { throw new Error("⚠ Respuesta no válida:\n" + txt); }
 
       if (!data.ok) throw new Error(data.error || "Error en la importación");
       bar.style.width = "100%";
@@ -142,27 +148,19 @@
       const data = await r.json();
       if (!data.ok) throw new Error(data.error);
       tbl.innerHTML = data.rows.map(x => `
-        <tr class="${x.anulado_at ? 'table-danger' : ''}">
+        <tr>
           <td>${x.import_id}</td>
+          <td>${x.mes_descarga || '-'}</td>
+          <td>${x.anio_descarga || '-'}</td>
           <td>${x.filename}</td>
+          <td>${x.total_rows}</td>
           <td>${x.inserted}</td>
           <td>${x.skipped}</td>
-          <td>${x.total_rows}</td>
-          <td>${x.started_at ? new Date(x.started_at).toLocaleString() : '-'}</td>
           <td>${x.finished_at ? new Date(x.finished_at).toLocaleString() : '-'}</td>
-          <td>${x.anulado_at ? '<i class="bi bi-slash-circle text-danger"></i>' :
-          `<button class="btn btn-sm btn-outline-danger" onclick="anularImportacion('${x.import_id}')"><i class="bi bi-trash"></i></button>`}</td>
         </tr>`).join("");
     } catch (err) {
       tbl.innerHTML = `<tr><td colspan="8" class="text-danger text-center">Error al cargar historial.<br>${err.message}</td></tr>`;
     }
-  }
-
-  async function anularImportacion(id) {
-    if (!confirm("¿Desea anular esta importación?")) return;
-    const res = await fetch(ENDPOINT + "?action=anular&id=" + encodeURIComponent(id));
-    const data = await res.json();
-    if (data.ok) cargarHistorial(); else alert("Error: " + data.error);
   }
 
   cargarHistorial();
