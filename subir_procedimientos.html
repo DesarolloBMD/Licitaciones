@@ -3,167 +3,201 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Importar Procedimientos Adjudicados (CSV)</title>
+  <title>Importar Procedimientos Adjudicados</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <style>
-    body { background: #f8fafc; }
-    .btn-acento { background: #0b4912; color: #fff; border: none; }
+    body { background: #f6f8fa; }
+    .card { border-radius: 16px; }
+    .btn-acento { background: #0B4912; color: #fff; border: none; }
     .btn-acento:hover { filter: brightness(1.1); color: #fff; }
-    .progress { height: 8px; border-radius: 10px; }
-    pre { background: #f1f3f5; border-radius: 6px; padding: 10px; }
+    .mono { font-family: ui-monospace, monospace; }
+    .progress { height: 8px; border-radius: 10px; overflow: hidden; }
   </style>
 </head>
-<body class="p-4">
+<body class="p-3 p-lg-5">
 
-  <div class="container" style="max-width: 900px;">
-    <div class="card shadow-sm">
-      <div class="card-body">
+<div class="container" style="max-width:950px;">
+  <div class="card shadow-sm">
+    <div class="card-body p-4">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h2 class="h5 m-0 text-success">
+          <i class="bi bi-cloud-upload me-2"></i>Importar “Procedimientos Adjudicados”
+        </h2>
+        <span class="badge text-bg-light border">Gestor de carga CSV/TXT</span>
+      </div>
 
-        <h4 class="text-success mb-3">
-          <i class="bi bi-cloud-upload me-2"></i>Importar Procedimientos Adjudicados (.CSV)
-        </h4>
-
-        <form id="frm" enctype="multipart/form-data" class="d-flex flex-column gap-3">
-
-          <div class="row g-3">
-            <div class="col-md-6">
-              <label class="form-label">Mes de Descarga</label>
-              <select name="mes_descarga" id="mes_descarga" class="form-select" required>
-                <option value="">Seleccione...</option>
-                <option>Enero</option><option>Febrero</option><option>Marzo</option>
-                <option>Abril</option><option>Mayo</option><option>Junio</option>
-                <option>Julio</option><option>Agosto</option><option>Septiembre</option>
-                <option>Octubre</option><option>Noviembre</option><option>Diciembre</option>
-              </select>
-            </div>
-
-            <div class="col-md-6">
-              <label class="form-label">Año de Descarga</label>
-              <select name="anio_descarga" id="anio_descarga" class="form-select" required>
-                <option value="">Seleccione...</option>
-                <option>2023</option><option>2024</option><option>2025</option>
-              </select>
-            </div>
+      <!-- Formulario -->
+      <form id="frm" enctype="multipart/form-data" class="d-flex flex-column gap-3">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Mes de Descarga</label>
+            <select name="mes_descarga" class="form-select" required>
+              <option value="">Seleccione...</option>
+              <option>Enero</option><option>Febrero</option><option>Marzo</option>
+              <option>Abril</option><option>Mayo</option><option>Junio</option>
+              <option>Julio</option><option>Agosto</option><option>Septiembre</option>
+              <option>Octubre</option><option>Noviembre</option><option>Diciembre</option>
+            </select>
           </div>
-
-          <div>
-            <label class="form-label">Archivo CSV</label>
-            <input type="file" name="archivo" id="archivo" accept=".csv" class="form-control" required>
+          <div class="col-md-6">
+            <label class="form-label">Año de Descarga</label>
+            <select name="anio_descarga" class="form-select" required>
+              <option value="">Seleccione...</option>
+              <option>2023</option><option>2024</option><option>2025</option>
+            </select>
           </div>
-
-          <div class="d-flex gap-2">
-            <button id="btnSubir" class="btn btn-acento">
-              <i class="bi bi-upload me-1"></i> Subir e importar
-            </button>
-            <button id="btnCancelar" type="button" class="btn btn-outline-danger" disabled>
-              <i class="bi bi-x-circle me-1"></i> Cancelar
-            </button>
-            <button id="btnLimpiar" type="button" class="btn btn-outline-secondary">
-              <i class="bi bi-trash me-1"></i> Limpiar
-            </button>
-          </div>
-
-          <div id="barWrap" class="progress mt-2" style="display:none;">
-            <div id="bar" class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%"></div>
-          </div>
-
-          <pre id="log" class="small text-dark"></pre>
-        </form>
-
-        <hr>
-
-        <h5 class="text-success"><i class="bi bi-clock-history me-2"></i>Historial de importaciones</h5>
-        <div class="table-responsive">
-          <table class="table table-sm table-hover">
-            <thead class="table-light">
-              <tr>
-                <th>ID</th>
-                <th>Mes</th>
-                <th>Año</th>
-                <th>Archivo</th>
-                <th>Total</th>
-                <th>Insertados</th>
-                <th>Saltados</th>
-                <th>Fecha</th>
-              </tr>
-            </thead>
-            <tbody id="tblBody"><tr><td colspan="8" class="text-center text-muted">Cargando...</td></tr></tbody>
-          </table>
         </div>
 
+        <div>
+          <label class="form-label">Archivo de procedimientos (.csv o .txt)</label>
+          <input type="file" name="archivo" id="archivo" class="form-control" accept=".csv,.txt" required>
+          <div class="form-text">
+            Asegúrese de que los encabezados coincidan exactamente con el formato esperado.<br>
+            Ejemplo: <code>CEDULA;INSTITUCION;ANO;NUMERO_PROCEDIMIENTO;...</code>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2 align-items-center">
+          <button id="btnSubir" type="submit" class="btn btn-acento">
+            <i class="bi bi-upload me-1"></i> Subir e importar
+          </button>
+          <button id="btnCancelar" type="button" class="btn btn-outline-danger" disabled>
+            <i class="bi bi-x-circle me-1"></i> Cancelar
+          </button>
+          <button id="btnLimpiar" type="button" class="btn btn-outline-secondary">
+            <i class="bi bi-trash me-1"></i> Limpiar
+          </button>
+          <span id="cronometro" class="text-muted ms-auto small"></span>
+        </div>
+
+        <div id="barWrap" class="progress mt-2" style="display:none;">
+          <div id="bar" class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%"></div>
+        </div>
+
+        <pre id="log" class="mono small p-2 bg-light border rounded" style="white-space:pre-wrap;max-height:320px;overflow:auto;"></pre>
+      </form>
+
+      <hr class="my-4">
+
+      <h5 class="mb-3 text-success">
+        <i class="bi bi-clock-history me-2"></i>Historial de importaciones
+      </h5>
+      <div class="table-responsive">
+        <table id="tblHistorial" class="table table-sm table-hover align-middle">
+          <thead class="table-light">
+          <tr>
+            <th>Archivo</th>
+            <th>Mes</th>
+            <th>Año</th>
+            <th>Insertados</th>
+            <th>Saltados</th>
+            <th>Total</th>
+            <th>Fecha</th>
+            <th></th>
+          </tr>
+          </thead>
+          <tbody><tr><td colspan="8" class="text-center text-muted">Cargando...</td></tr></tbody>
+        </table>
       </div>
     </div>
   </div>
+</div>
 
-  <script>
-  const ENDPOINT = "api/subir_procedimientos.php";
-  const frm = document.getElementById("frm");
-  const bar = document.getElementById("bar");
-  const barWrap = document.getElementById("barWrap");
-  const log = document.getElementById("log");
-  const tbl = document.getElementById("tblBody");
-  const btnSubir = document.getElementById("btnSubir");
-  const btnCancelar = document.getElementById("btnCancelar");
-  const btnLimpiar = document.getElementById("btnLimpiar");
-  let controller = null;
+<script>
+const ENDPOINT = "subir_procedimientos.php";
+const frm = document.getElementById('frm');
+const barWrap = document.getElementById('barWrap');
+const bar = document.getElementById('bar');
+const log = document.getElementById('log');
+const tbl = document.querySelector('#tblHistorial tbody');
+const btnSubir = document.getElementById('btnSubir');
+const btnCancelar = document.getElementById('btnCancelar');
+const btnLimpiar = document.getElementById('btnLimpiar');
+const cronometro = document.getElementById('cronometro');
+let controller = null, timer = null, segundos = 0;
 
-  frm.addEventListener("submit", async e => {
-    e.preventDefault();
-    const fd = new FormData(frm);
-    controller = new AbortController();
-    barWrap.style.display = "block";
-    bar.style.width = "5%";
-    log.textContent = "Subiendo...";
-    btnSubir.disabled = true;
-    btnCancelar.disabled = false;
+frm.addEventListener('submit', async e => {
+  e.preventDefault();
+  const fd = new FormData(frm);
+  controller = new AbortController();
+  btnSubir.disabled = true;
+  btnCancelar.disabled = false;
+  barWrap.style.display = 'block';
+  bar.style.width = '5%';
+  log.textContent = '⏳ Subiendo...';
+  segundos = 0;
+  cronometro.textContent = "0s";
+  timer = setInterval(()=>{ segundos++; cronometro.textContent = segundos+'s'; },1000);
 
-    try {
-      const res = await fetch(ENDPOINT, { method: "POST", body: fd, signal: controller.signal });
-      const txt = await res.text();
-      let data;
-      try { data = JSON.parse(txt); } 
-      catch { throw new Error("⚠ Respuesta no válida:\n" + txt); }
+  try {
+    const res = await fetch(ENDPOINT, { method:'POST', body:fd, signal:controller.signal });
+    const txt = await res.text();
+    let data;
+    try { data = JSON.parse(txt); } catch { throw new Error('⚠ Respuesta no válida del servidor:\n' + txt.slice(0,300)); }
 
-      if (!data.ok) throw new Error(data.error || "Error en la importación");
-      bar.style.width = "100%";
-      log.textContent = `✅ Importación completada\nInsertados: ${data.insertados}\nSaltados: ${data.saltados}\nTotal: ${data.total}`;
-      cargarHistorial();
-    } catch (err) {
-      log.textContent = "⚠ " + err.message;
-    } finally {
-      btnSubir.disabled = false;
-      btnCancelar.disabled = true;
-      controller = null;
-      setTimeout(() => { barWrap.style.display = "none"; bar.style.width = "0%"; }, 1000);
-    }
-  });
+    if (!data.ok) throw new Error(data.error || 'Error desconocido en la importación');
 
-  btnCancelar.addEventListener("click", () => { if (controller) controller.abort(); });
-  btnLimpiar.addEventListener("click", () => { frm.reset(); log.textContent = ""; });
-
-  async function cargarHistorial() {
-    try {
-      const r = await fetch("api/subir_procedimientos.php?action=historial");
-      const data = await r.json();
-      if (!data.ok) throw new Error(data.error);
-      tbl.innerHTML = data.rows.map(x => `
-        <tr>
-          <td>${x.import_id}</td>
-          <td>${x.mes_descarga || '-'}</td>
-          <td>${x.anio_descarga || '-'}</td>
-          <td>${x.filename}</td>
-          <td>${x.total_rows}</td>
-          <td>${x.inserted}</td>
-          <td>${x.skipped}</td>
-          <td>${x.finished_at ? new Date(x.finished_at).toLocaleString() : '-'}</td>
-        </tr>`).join("");
-    } catch (err) {
-      tbl.innerHTML = `<tr><td colspan="8" class="text-danger text-center">Error al cargar historial.<br>${err.message}</td></tr>`;
-    }
+    bar.style.width = '100%';
+    const errores = (data.errores || []).slice(0,10).map(e => '- '+e).join('\n');
+    log.textContent = `✅ Importación completada\nInsertados: ${data.insertados}\nSaltados: ${data.saltados}\nTotal: ${data.total}\n${errores ? '\nErrores:\n'+errores : ''}`;
+    cargarHistorial();
+  } catch(err){
+    log.textContent = err.name==='AbortError' ? '⛔ Importación cancelada.' : '⚠ '+err.message;
+  } finally {
+    btnSubir.disabled = false;
+    btnCancelar.disabled = true;
+    clearInterval(timer);
+    controller = null;
+    setTimeout(()=>{ barWrap.style.display='none'; bar.style.width='0%'; }, 800);
   }
+});
 
-  cargarHistorial();
-  </script>
+btnCancelar.addEventListener('click',()=>{ if(controller) controller.abort(); });
+btnLimpiar.addEventListener('click',()=>{ frm.reset(); log.textContent=''; bar.style.width='0%'; barWrap.style.display='none'; cronometro.textContent=''; });
+
+async function cargarHistorial(){
+  try{
+    const r = await fetch(ENDPOINT+'?action=historial');
+    const data = await r.json();
+    if(!data.ok) throw new Error(data.error || 'Error al cargar historial');
+    if(!Array.isArray(data.rows) || !data.rows.length){
+      tbl.innerHTML='<tr><td colspan="8" class="text-center text-muted">Sin registros</td></tr>';
+      return;
+    }
+    tbl.innerHTML = data.rows.map(x=>`
+      <tr>
+        <td>${x.filename || '(sin nombre)'}</td>
+        <td>${x.mes_descarga || '-'}</td>
+        <td>${x.anio_descarga || '-'}</td>
+        <td>${x.inserted ?? 0}</td>
+        <td>${x.skipped ?? 0}</td>
+        <td>${x.total_rows ?? (x.inserted + x.skipped ?? 0)}</td>
+        <td>${x.finished_at ? new Date(x.finished_at).toLocaleString() : '-'}</td>
+        <td>
+          <button class="btn btn-sm btn-outline-danger" onclick="anularImportacion('${x.import_id}')">
+            <i class="bi bi-trash"></i>
+          </button>
+        </td>
+      </tr>`).join('');
+  }catch(err){
+    tbl.innerHTML=`<tr><td colspan="8" class="text-danger text-center">Error al cargar historial.<br>${err.message}</td></tr>`;
+  }
+}
+
+async function anularImportacion(id){
+  if(!confirm('¿Seguro desea anular esta importación?')) return;
+  try{
+    const r = await fetch('api/anular_importacion.php?id='+id);
+    const d = await r.json();
+    if(!d.ok) throw new Error(d.error || 'Error al anular');
+    alert('Importación anulada correctamente');
+    cargarHistorial();
+  }catch(e){ alert('Error: '+e.message); }
+}
+
+cargarHistorial();
+</script>
+
 </body>
 </html>
