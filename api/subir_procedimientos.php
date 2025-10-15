@@ -52,16 +52,25 @@ if (!$mes_descarga || !$anio_descarga) {
 }
 
 /* ============================================================
-   4. Leer CSV y detectar delimitador
+   4. Validar extensión y abrir archivo
    ============================================================ */
 $nombre = $_FILES['archivo']['name'];
 $tmp = $_FILES['archivo']['tmp_name'];
+$ext = strtolower(pathinfo($nombre, PATHINFO_EXTENSION));
+if (!in_array($ext, ['csv','txt'])) {
+  echo json_encode(['ok' => false, 'error' => 'Solo se permiten archivos .csv o .txt']);
+  exit;
+}
+
 $fh = fopen($tmp, 'r');
 if (!$fh) {
   echo json_encode(['ok' => false, 'error' => 'No se pudo abrir el archivo']);
   exit;
 }
 
+/* ============================================================
+   5. Detectar delimitador automáticamente
+   ============================================================ */
 $firstLine = fgets($fh);
 rewind($fh);
 $counts = [
@@ -71,22 +80,31 @@ $counts = [
 ];
 arsort($counts);
 $delimiter = key($counts);
+
+/* ============================================================
+   6. Leer y limpiar encabezados
+   ============================================================ */
 $header = fgetcsv($fh, 0, $delimiter);
 if (!$header) {
   echo json_encode(['ok' => false, 'error' => 'Archivo vacío o sin encabezados']);
   exit;
 }
 
-/* ============================================================
-   5. Mapear y limpiar encabezados
-   ============================================================ */
 function clean_header(string $h): string {
-  $h = trim(str_replace(["\xEF\xBB\xBF", "\r", "\n", "\t"], '', $h));
+  $h = str_replace(
+    ["\xEF\xBB\xBF", "\r", "\n", "\t", "\u{00A0}", "\u{200B}", "\u{200C}", "\u{200D}"],
+    '',
+    trim($h)
+  );
   $h = preg_replace('/\s+/u', ' ', $h);
   $h = str_replace(['Á','É','Í','Ó','Ú','á','é','í','ó','ú'], ['A','E','I','O','U','A','E','I','O','U'], $h);
-  return strtoupper($h);
+  return strtoupper(trim($h));
 }
+$csv_cols = array_map('clean_header', $header);
 
+/* ============================================================
+   7. Mapa esperado de encabezados → columnas base
+   ============================================================ */
 $mapa = [
   'CEDULA' => 'cedula',
   'INSTITUCION' => 'institucion',
@@ -120,14 +138,16 @@ $mapa = [
   'PROD_ID_CL' => 'prod_id_cl'
 ];
 
-$csv_cols = array_map('clean_header', $header);
+/* ============================================================
+   8. Validar encabezados
+   ============================================================ */
 $faltan = array_diff(array_keys($mapa), $csv_cols);
 $sobran = array_diff($csv_cols, array_keys($mapa));
 
 if ($faltan || $sobran) {
   echo json_encode([
     'ok' => false,
-    'error' => 'Encabezados no coinciden',
+    'error' => 'Encabezados no coinciden con el formato esperado',
     'faltan' => array_values($faltan),
     'sobran' => array_values($sobran),
     'detectados' => array_values($csv_cols)
@@ -136,7 +156,7 @@ if ($faltan || $sobran) {
 }
 
 /* ============================================================
-   6. Inserción de datos
+   9. Inserción masiva
    ============================================================ */
 $cols_pg = array_map(fn($c) => $mapa[$c], $csv_cols);
 $import_id = uniqid('imp_');
@@ -159,7 +179,7 @@ $pdo->commit();
 fclose($fh);
 
 /* ============================================================
-   7. Registrar log
+   10. Registrar importación en log
    ============================================================ */
 try {
   $pdo->prepare('INSERT INTO public.procedimientos_import_log (import_id, filename, mes_descarga, anio_descarga, total_rows, inserted, skipped, started_at, finished_at, source_ip)
@@ -177,7 +197,7 @@ try {
 } catch (Throwable $e) {}
 
 /* ============================================================
-   8. Respuesta final
+   11. Respuesta final
    ============================================================ */
 echo json_encode([
   'ok' => true,
