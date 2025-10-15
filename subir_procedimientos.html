@@ -3,44 +3,50 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Importar Procedimientos Adjudicados</title>
+  <title>Importar Procedimientos Adjudicados (CSV)</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <style>
-    body { background:#f6f8fa; }
-    .card { border-radius:16px; }
-    .btn-acento { background:#0B4912; color:#fff; border:none; }
-    .btn-acento:hover { filter:brightness(1.1); color:#fff; }
-    .mono { font-family:ui-monospace,monospace; }
-    .progress { height:8px; border-radius:10px; overflow:hidden; }
+    body { background: #f8fafc; }
+    .btn-acento { background: #0b4912; color: #fff; border: none; }
+    .btn-acento:hover { filter: brightness(1.1); color: #fff; }
+    .progress { height: 8px; border-radius: 10px; }
+    pre { background: #f1f3f5; border-radius: 6px; padding: 10px; }
+    .table td, .table th { vertical-align: middle; }
   </style>
 </head>
 <body class="p-3 p-lg-5">
-
-  <div class="container" style="max-width:950px;">
+  <div class="container" style="max-width: 950px;">
     <div class="card shadow-sm">
       <div class="card-body p-4">
 
-        <div class="d-flex align-items-center justify-content-between mb-3">
-          <h2 class="h5 m-0 text-success">
-            <i class="bi bi-file-earmark-excel me-2"></i>Importar “Procedimientos Adjudicados”
-          </h2>
-          <span class="badge text-bg-light border">Solo archivos Excel (.xlsx)</span>
+        <h3 class="text-success mb-3">
+          <i class="bi bi-cloud-upload me-2"></i> Importar Procedimientos Adjudicados (.CSV)
+        </h3>
+
+        <!-- Encabezados requeridos -->
+        <div class="alert alert-secondary small">
+          <b>Columnas esperadas:</b><br>
+          Mes de Descarga | Año de Descarga | Mes de Adjudicación | Año de Adjudicación | Cédula |
+          Institución | Año | Numero de Procedimiento | Descripción de Procedimiento | Línea |
+          Numero de SICOP | Tipo de Procedimiento | Modalidad de Procedimiento | Fecha Rev |
+          Cédula del Proveedor | Nombre del Proveedor | Perfil del Proveedor | Cédula del Representante |
+          Representante | Objeto Gasto | Moneda Adjudicada | Monto Adjudicado por Línea |
+          Monto Adjudicado por Línea CRC | Monto Adjudicado por Línea USD | Fecha Adjudicación Firma |
+          Fecha Solicitud de Contrato | Producto ID | Descripción del Bien y Servicio |
+          Cantidad | Unidad de Medida | Monto Unitario | Moneda de Precio |
+          Fecha Solicitud de Contrato CL | Producto ID CL
         </div>
 
-        <div class="alert alert-info small" style="white-space: pre-line;">
-<b>Encabezados esperados:</b>
-Mes de Descarga | Año de Descarga | Mes de Adjudicación | Año de Adjudicación | Cédula | Institución | Año | Número de Procedimiento | Descripción de Procedimiento | Línea | Número de SICOP | Tipo de Procedimiento | Modalidad de Procedimiento | Fecha Rev | Cédula del Proveedor | Nombre del Proveedor | Perfil del Proveedor | Cédula del Representante | Representante | Objeto Gasto | Moneda Adjudicada | Monto Adjudicado por Línea | Monto Adjudicado por Línea CRC | Monto Adjudicado por Línea USD | Fecha Adjudicación Firma | Fecha Solicitud de Contrato | Producto ID | Descripción del Bien y Servicio | Cantidad | Unidad de Medida | Monto Unitario | Moneda de Precio | Fecha Solicitud de Contrato CL | Producto ID CL
-        </div>
-
+        <!-- Formulario -->
         <form id="frm" enctype="multipart/form-data" class="d-flex flex-column gap-3">
           <div>
-            <label class="form-label">Archivo Excel (.xlsx)</label>
-            <input type="file" name="archivo" id="archivo" class="form-control" accept=".xlsx" required>
+            <label class="form-label">Archivo CSV</label>
+            <input type="file" name="archivo" id="archivo" accept=".csv" class="form-control" required>
           </div>
 
           <div class="d-flex gap-2">
-            <button id="btnSubir" type="submit" class="btn btn-acento">
+            <button id="btnSubir" class="btn btn-acento">
               <i class="bi bi-upload me-1"></i> Subir e importar
             </button>
             <button id="btnCancelar" type="button" class="btn btn-outline-danger" disabled>
@@ -55,29 +61,28 @@ Mes de Descarga | Año de Descarga | Mes de Adjudicación | Año de Adjudicació
             <div id="bar" class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%"></div>
           </div>
 
-          <div class="mt-2 text-muted small">
-            <i class="bi bi-stopwatch me-1"></i>Duración: <span id="cronometro">00:00</span>
-          </div>
-
-          <pre id="log" class="mono small p-2 bg-light border rounded" style="white-space:pre-wrap;max-height:320px;overflow:auto;"></pre>
+          <pre id="log" class="small text-dark"></pre>
         </form>
 
-        <hr class="my-4">
+        <hr>
 
-        <h5 class="mb-3 text-success"><i class="bi bi-clock-history me-2"></i>Historial de importaciones</h5>
+        <!-- Historial -->
+        <h5 class="text-success"><i class="bi bi-clock-history me-2"></i>Historial de importaciones</h5>
         <div class="table-responsive">
-          <table id="tblHistorial" class="table table-sm table-hover align-middle">
+          <table class="table table-sm table-hover">
             <thead class="table-light">
               <tr>
+                <th>ID</th>
                 <th>Archivo</th>
                 <th>Insertados</th>
                 <th>Saltados</th>
                 <th>Total</th>
-                <th>Fecha</th>
+                <th>Inicio</th>
+                <th>Fin</th>
                 <th></th>
               </tr>
             </thead>
-            <tbody><tr><td colspan="6" class="text-center text-muted">Cargando...</td></tr></tbody>
+            <tbody id="tblBody"><tr><td colspan="8" class="text-center text-muted">Cargando...</td></tr></tbody>
           </table>
         </div>
 
@@ -87,93 +92,77 @@ Mes de Descarga | Año de Descarga | Mes de Adjudicación | Año de Adjudicació
 
   <script>
   const ENDPOINT = "api/subir_procedimientos.php";
-  const frm = document.getElementById('frm');
-  const btnSubir = document.getElementById('btnSubir');
-  const btnCancelar = document.getElementById('btnCancelar');
-  const btnLimpiar = document.getElementById('btnLimpiar');
-  const barWrap = document.getElementById('barWrap');
-  const bar = document.getElementById('bar');
-  const log = document.getElementById('log');
-  const cronometro = document.getElementById('cronometro');
-  const tbl = document.querySelector('#tblHistorial tbody');
-  let controller = null, timer = null, segundos = 0;
+  const frm = document.getElementById("frm");
+  const bar = document.getElementById("bar");
+  const barWrap = document.getElementById("barWrap");
+  const log = document.getElementById("log");
+  const tbl = document.getElementById("tblBody");
+  const btnSubir = document.getElementById("btnSubir");
+  const btnCancelar = document.getElementById("btnCancelar");
+  const btnLimpiar = document.getElementById("btnLimpiar");
+  let controller = null;
 
-  function startCrono() {
-    segundos = 0;
-    timer = setInterval(() => {
-      segundos++;
-      let m = String(Math.floor(segundos / 60)).padStart(2, '0');
-      let s = String(segundos % 60).padStart(2, '0');
-      cronometro.textContent = `${m}:${s}`;
-    }, 1000);
-  }
-  function stopCrono() { clearInterval(timer); timer = null; }
-
-  frm.addEventListener('submit', async e => {
+  frm.addEventListener("submit", async e => {
     e.preventDefault();
     const fd = new FormData(frm);
     controller = new AbortController();
+    barWrap.style.display = "block";
+    bar.style.width = "5%";
+    log.textContent = "Subiendo...";
     btnSubir.disabled = true;
     btnCancelar.disabled = false;
-    barWrap.style.display = 'block';
-    bar.style.width = '10%';
-    log.textContent = 'Subiendo...';
-    startCrono();
 
     try {
-      const res = await fetch(ENDPOINT, { method: 'POST', body: fd, signal: controller.signal });
-      const text = await res.text();
+      const res = await fetch(ENDPOINT, { method: "POST", body: fd, signal: controller.signal });
+      const txt = await res.text();
       let data;
-      try { data = JSON.parse(text); } 
-      catch { throw new Error('Respuesta no válida:\n' + text.slice(0,300)); }
+      try { data = JSON.parse(txt); } 
+      catch { throw new Error("⚠ Respuesta no válida del servidor:\n" + txt); }
 
-      if (!data.ok) throw new Error(data.error || 'Error desconocido');
-
-      bar.style.width = '100%';
-      log.textContent = `✅ Importación completada\nInsertados: ${data.insertados}\nSaltados: ${data.saltados}\nTotal: ${data.total}\nID: ${data.import_id}`;
+      if (!data.ok) throw new Error(data.error || "Error en la importación");
+      bar.style.width = "100%";
+      log.textContent = `✅ Importación completada\nInsertados: ${data.insertados}\nSaltados: ${data.saltados}\nTotal: ${data.total}`;
       cargarHistorial();
     } catch (err) {
-      log.textContent = '⚠ ' + err.message;
+      log.textContent = "⚠ " + err.message;
     } finally {
       btnSubir.disabled = false;
       btnCancelar.disabled = true;
-      stopCrono();
-      setTimeout(()=>{barWrap.style.display='none';bar.style.width='0%';},1000);
+      controller = null;
+      setTimeout(() => { barWrap.style.display = "none"; bar.style.width = "0%"; }, 1000);
     }
   });
 
-  btnCancelar.addEventListener('click', ()=>{ if (controller) controller.abort(); });
-  btnLimpiar.addEventListener('click', ()=>{ frm.reset(); log.textContent=''; });
+  btnCancelar.addEventListener("click", () => { if (controller) controller.abort(); });
+  btnLimpiar.addEventListener("click", () => { frm.reset(); log.textContent = ""; });
 
   async function cargarHistorial() {
     try {
-      const res = await fetch(ENDPOINT + '?action=historial');
-      const data = await res.json();
+      const r = await fetch("api/subir_procedimientos.php?action=historial");
+      const data = await r.json();
       if (!data.ok) throw new Error(data.error);
-      if (!data.rows.length) {
-        tbl.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Sin registros</td></tr>';
-        return;
-      }
-      tbl.innerHTML = data.rows.map(x=>`
-        <tr>
+      tbl.innerHTML = data.rows.map(x => `
+        <tr class="${x.anulado_at ? 'table-danger' : ''}">
+          <td>${x.import_id}</td>
           <td>${x.filename}</td>
-          <td>${x.inserted ?? 0}</td>
-          <td>${x.skipped ?? 0}</td>
-          <td>${x.total_rows ?? 0}</td>
+          <td>${x.inserted}</td>
+          <td>${x.skipped}</td>
+          <td>${x.total_rows}</td>
+          <td>${x.started_at ? new Date(x.started_at).toLocaleString() : '-'}</td>
           <td>${x.finished_at ? new Date(x.finished_at).toLocaleString() : '-'}</td>
-          <td class="text-center"><button class="btn btn-sm btn-outline-danger" onclick="anularImport('${x.import_id}')"><i class="bi bi-trash"></i></button></td>
-        </tr>`).join('');
+          <td>${x.anulado_at ? '<i class="bi bi-slash-circle text-danger"></i>' :
+          `<button class="btn btn-sm btn-outline-danger" onclick="anularImportacion('${x.import_id}')"><i class="bi bi-trash"></i></button>`}</td>
+        </tr>`).join("");
     } catch (err) {
-      tbl.innerHTML = `<tr><td colspan="6" class="text-danger text-center">Error al cargar historial.<br>${err.message}</td></tr>`;
+      tbl.innerHTML = `<tr><td colspan="8" class="text-danger text-center">Error al cargar historial.<br>${err.message}</td></tr>`;
     }
   }
 
-  async function anularImport(id){
-    if (!confirm('¿Anular importación y borrar registros asociados?')) return;
-    const res = await fetch(ENDPOINT+'?action=anular&id='+encodeURIComponent(id));
+  async function anularImportacion(id) {
+    if (!confirm("¿Desea anular esta importación?")) return;
+    const res = await fetch(ENDPOINT + "?action=anular&id=" + encodeURIComponent(id));
     const data = await res.json();
-    if (data.ok) cargarHistorial();
-    else alert('Error: '+data.error);
+    if (data.ok) cargarHistorial(); else alert("Error: " + data.error);
   }
 
   cargarHistorial();
