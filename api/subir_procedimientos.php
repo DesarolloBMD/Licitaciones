@@ -1,11 +1,13 @@
 <?php
 declare(strict_types=1);
+@ini_set('display_errors', '0');
 @ini_set('memory_limit', '1024M');
 @set_time_limit(0);
 
-/* =============================
-   MANEJO SEGURO DE ERRORES JSON
-   ============================= */
+/* ==========================================================
+   🧩  MANEJO GLOBAL DE ERRORES (todo responde en JSON)
+   ========================================================== */
+ob_start();
 set_error_handler(function($severity, $message, $file, $line) {
   throw new ErrorException($message, 0, $severity, $file, $line);
 });
@@ -22,34 +24,39 @@ register_shutdown_function(function() {
   }
 });
 
+header('Content-Type: application/json; charset=utf-8');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type');
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
+
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
-/* =============================
-   CONEXIÓN A POSTGRES
-   ============================= */
+/* ==========================================================
+   🧠 CONEXIÓN A POSTGRES
+   ========================================================== */
 $DATABASE_URL = getenv('DATABASE_URL');
-if (!$DATABASE_URL || stripos($DATABASE_URL,'postgres')===false) {
+if (!$DATABASE_URL || stripos($DATABASE_URL, 'postgres') === false) {
   $DATABASE_URL = 'postgresql://licitaciones_bmd_user:vFgswY5U7MaSqqexdhjgAE5M9fBpT2OQ@dpg-d3g2v7j3fgac73c4eek0-a.oregon-postgres.render.com:5432/licitaciones_bmd?sslmode=require';
 }
 
 try {
   $p = parse_url($DATABASE_URL);
-  $dsn = sprintf('pgsql:host=%s;port=%d;dbname=%s;sslmode=require', $p['host'], $p['port']??5432, ltrim($p['path'],'/'));
+  $dsn = sprintf('pgsql:host=%s;port=%d;dbname=%s;sslmode=require',
+    $p['host'], $p['port'] ?? 5432, ltrim($p['path'], '/'));
   $pdo = new PDO($dsn, $p['user'], $p['pass'], [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
   ]);
 } catch (Throwable $e) {
-  http_response_code(500);
-  echo json_encode(['ok'=>false,'error'=>'Error de conexión: '.$e->getMessage()], JSON_UNESCAPED_UNICODE);
+  echo json_encode(['ok' => false, 'error' => 'Error de conexión: '.$e->getMessage()], JSON_UNESCAPED_UNICODE);
   exit;
 }
 
-/* =============================
-   ACCIÓN: LISTAR HISTORIAL
-   ============================= */
-if (isset($_GET['accion']) && $_GET['accion']==='logs') {
-  header('Content-Type: application/json; charset=utf-8');
+/* ==========================================================
+   📜 ENDPOINT: HISTORIAL DE IMPORTACIONES
+   ========================================================== */
+if (isset($_GET['accion']) && $_GET['accion'] === 'logs') {
   try {
     $rows = $pdo->query('
       SELECT import_id, filename, total_rows, inserted, skipped, started_at, finished_at
@@ -57,18 +64,17 @@ if (isset($_GET['accion']) && $_GET['accion']==='logs') {
       ORDER BY started_at DESC
       LIMIT 100
     ')->fetchAll();
-    echo json_encode(['ok'=>true,'logs'=>$rows], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['ok' => true, 'logs' => $rows], JSON_UNESCAPED_UNICODE);
   } catch (Throwable $e) {
-    echo json_encode(['ok'=>false,'error'=>$e->getMessage()], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
   }
   exit;
 }
 
-/* =============================
-   ACCIÓN: ANULAR IMPORTACIÓN
-   ============================= */
-if (isset($_GET['accion']) && $_GET['accion']==='anular' && isset($_GET['id'])) {
-  header('Content-Type: application/json; charset=utf-8');
+/* ==========================================================
+   ❌ ENDPOINT: ANULAR IMPORTACIÓN
+   ========================================================== */
+if (isset($_GET['accion']) && $_GET['accion'] === 'anular' && isset($_GET['id'])) {
   $id = $_GET['id'];
   try {
     $pdo->beginTransaction();
@@ -83,11 +89,11 @@ if (isset($_GET['accion']) && $_GET['accion']==='anular' && isset($_GET['id'])) 
   exit;
 }
 
-/* =============================
-   IMPORTACIÓN DE ARCHIVO
-   ============================= */
+/* ==========================================================
+   📤 IMPORTAR ARCHIVO CSV / TXT
+   ========================================================== */
 if ($method !== 'POST') {
-  echo json_encode(['ok'=>false,'error'=>'Método no permitido'], JSON_UNESCAPED_UNICODE);
+  echo json_encode(['ok'=>false,'error'=>'Método no permitido (usa POST)'], JSON_UNESCAPED_UNICODE);
   exit;
 }
 
@@ -120,33 +126,31 @@ if (($delims[$delimiter] ?? 0) === 0) $delimiter = ",";
 
 $headers = fgetcsv($fh, 0, $delimiter);
 if (!$headers) {
-  echo json_encode(['ok'=>false,'error'=>'Archivo vacío'], JSON_UNESCAPED_UNICODE);
+  echo json_encode(['ok'=>false,'error'=>'Archivo vacío o sin encabezados'], JSON_UNESCAPED_UNICODE);
   exit;
 }
 $headers = array_map(fn($h)=>trim(preg_replace('/\s+/',' ',$h)),$headers);
 
-/* Crear registro en el log */
+/* Registrar log inicial */
 $import_id = uniqid('imp_', true);
 $ip = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '';
-
-$stmtLog = $pdo->prepare('
+$pdo->prepare('
   INSERT INTO public.procedimientos_import_log(import_id, filename, total_rows, inserted, skipped, started_at, source_ip)
   VALUES(:id, :fn, 0, 0, 0, now(), :ip)
-');
-$stmtLog->execute([':id'=>$import_id, ':fn'=>$name, ':ip'=>$ip]);
+')->execute([':id'=>$import_id, ':fn'=>$name, ':ip'=>$ip]);
 
-/* Preparar INSERT dinámico */
+/* Armar sentencia de inserción */
 $cols = array_map(fn($h)=>'"'.$h.'"', $headers);
-$params = array_map(fn($h)=>':'.preg_replace('/\W+/','_',strtolower($h)), $headers);
+$params = array_map(fn($h)=>':'.preg_replace('/\W+/','_',strtolower($h)),$headers);
 
 $sql = 'INSERT INTO public."Procedimientos Adjudicados" ('.implode(',', $cols).', import_id, created_at, updated_at)
         VALUES ('.implode(',', $params).', :imp, now(), now())';
-
 $stmt = $pdo->prepare($sql);
 
-/* Insertar datos */
+/* Procesar archivo */
 $total=0; $inserted=0; $skipped=0;
 $pdo->beginTransaction();
+
 while(($row=fgetcsv($fh,0,$delimiter))!==false) {
   $total++;
   if (count(array_filter($row))==0) { $skipped++; continue; }
@@ -174,10 +178,5 @@ $pdo->prepare('
   WHERE import_id = :id
 ')->execute([':t'=>$total,':i'=>$inserted,':s'=>$skipped,':id'=>$import_id]);
 
-/* Respuesta final JSON */
-echo json_encode([
-  'ok'=>true,
-  'insertados'=>$inserted,
-  'saltados'=>$skipped,
-  'total'=>$total
-], JSON_UNESCAPED_UNICODE);
+echo json_encode(['ok'=>true,'insertados'=>$inserted,'saltados'=>$skipped,'total'=>$total], JSON_UNESCAPED_UNICODE);
+exit;

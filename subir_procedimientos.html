@@ -1,177 +1,217 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Importar Procedimientos Adjudicados</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Importador de Procedimientos Adjudicados</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/>
   <style>
-    :root {
-      --bg: #0b0f24;
-      --brand: #0B4912;
-      --muted: #6b7b91;
-    }
-    body { background: var(--bg); }
-    .card { border-radius: 16px; }
-    .btn-brand { background: var(--brand); color: #fff; border: none; }
-    .btn-brand:hover { filter: brightness(1.1); color: #fff; }
-    pre { font-family: ui-monospace, monospace; font-size: .9rem; }
-    .tbl-mini th, .tbl-mini td { vertical-align: middle; }
-    #log { white-space: pre-wrap; max-height: 200px; overflow: auto; }
+    body { background:#f5f7fa; }
+    .card { border-radius:16px; }
+    .btn-acento { background:#0B4912; color:#fff; border:none; }
+    .btn-acento:hover { filter:brightness(1.05); color:#fff; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .log-box { white-space:pre-wrap; max-height:250px; overflow:auto; font-size:0.9rem; }
   </style>
 </head>
+
 <body class="p-3 p-lg-5">
+  <div class="container" style="max-width:950px">
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
 
-<div class="container" style="max-width:960px">
+        <h1 class="h4 mb-3"><i class="bi bi-cloud-upload text-success me-2"></i>Importar “Procedimientos Adjudicados”</h1>
+        <p class="text-muted small">Bienvenido al importador de procedimientos adjudicados del departamento de licitaciones.  
+        Por favor, cargue su archivo con extensión <code>.csv</code> o <code>.txt</code>.</p>
 
-  <!-- Card de importación -->
-  <div class="card shadow-sm mb-4">
-    <div class="card-body">
-      <h4 class="mb-3"><i class="bi bi-cloud-upload text-success me-2"></i>Importar “Procedimientos Adjudicados”</h4>
-      <p class="text-muted small">Cargue un archivo <code>.csv</code> o <code>.txt</code> con los encabezados del sistema.  
-        Las fechas deben venir en formato <code>dd/mm/yyyy</code> o <code>yyyy-mm-dd</code>.</p>
+        <form id="frm" class="d-flex flex-column gap-3" enctype="multipart/form-data">
+          <div>
+            <label class="form-label">Archivo de procedimientos (.csv o .txt)</label>
+            <input class="form-control" type="file" name="archivo" accept=".csv,.txt" required />
+            <div class="form-text small">
+              Soporta delimitadores <code>,</code>, <code>;</code> o <code>(tab)</code>.  
+              Las fechas se procesan automáticamente.  
+            </div>
+          </div>
 
-      <form id="frm" enctype="multipart/form-data" class="d-flex flex-column gap-3">
-        <div>
-          <label class="form-label">Archivo</label>
-          <input class="form-control" type="file" name="archivo" accept=".csv,.txt" required>
+          <div class="d-flex gap-2">
+            <button id="btnSubir" type="submit" class="btn btn-acento">
+              <i class="bi bi-cloud-arrow-up"></i> Subir e importar
+            </button>
+            <button id="btnCancelar" type="button" class="btn btn-outline-danger" disabled>
+              <i class="bi bi-x-circle"></i> Cancelar
+            </button>
+            <button id="btnLimpiar" type="button" class="btn btn-outline-secondary">
+              <i class="bi bi-eraser"></i> Limpiar
+            </button>
+          </div>
+
+          <div class="progress mt-2" style="height:8px; display:none;" id="barWrap">
+            <div class="progress-bar" id="bar" role="progressbar" style="width:0%"></div>
+          </div>
+
+          <div class="d-flex justify-content-between small text-muted">
+            <span id="timer" class="fst-italic"></span>
+          </div>
+
+          <pre id="log" class="mono bg-light border rounded p-2 log-box"></pre>
+        </form>
+
+        <hr class="my-4">
+
+        <h5 class="mb-3"><i class="bi bi-clock-history text-primary me-2"></i>Historial de importaciones</h5>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle" id="tblLogs">
+            <thead class="table-light">
+              <tr>
+                <th>Archivo</th>
+                <th>Insertados</th>
+                <th>Saltados</th>
+                <th>Total</th>
+                <th>Inicio</th>
+                <th>Fin</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody><tr><td colspan="7" class="text-center text-muted">Cargando historial...</td></tr></tbody>
+          </table>
         </div>
-        <div class="d-flex gap-2">
-          <button id="btnSubir" class="btn btn-brand"><i class="bi bi-upload"></i> Subir e importar</button>
-          <button id="btnCancelar" type="button" class="btn btn-outline-danger" disabled><i class="bi bi-x-circle"></i> Cancelar</button>
-          <button id="btnLimpiar" type="reset" class="btn btn-outline-secondary"><i class="bi bi-eraser"></i> Limpiar</button>
-        </div>
 
-        <div class="progress" style="height:8px;display:none" id="barWrap">
-          <div class="progress-bar" id="bar" role="progressbar" style="width:0%"></div>
-        </div>
-
-        <pre id="log" class="p-2 bg-light border rounded"></pre>
-      </form>
-    </div>
-  </div>
-
-  <!-- Card de historial -->
-  <div class="card shadow-sm">
-    <div class="card-body">
-      <h5 class="mb-3"><i class="bi bi-clock-history me-2 text-secondary"></i>Historial de importaciones</h5>
-      <div class="table-responsive">
-        <table class="table table-sm align-middle tbl-mini" id="tblLogs">
-          <thead>
-            <tr>
-              <th>Archivo</th>
-              <th>Insertados</th>
-              <th>Saltados</th>
-              <th>Total</th>
-              <th>Fecha</th>
-              <th>Duración</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td colspan="7" class="text-center text-muted">Cargando...</td></tr>
-          </tbody>
-        </table>
       </div>
     </div>
   </div>
 
-</div>
-
 <script>
-const API = 'api/subir_procedimientos.php';
-const frm = document.getElementById('frm'),
-      btnSubir = document.getElementById('btnSubir'),
-      btnCancelar = document.getElementById('btnCancelar'),
-      btnLimpiar = document.getElementById('btnLimpiar'),
-      bar = document.getElementById('bar'),
-      barWrap = document.getElementById('barWrap'),
-      log = document.getElementById('log'),
-      tbl = document.querySelector('#tblLogs tbody');
-let controller = null;
+const ENDPOINT = 'subir_procedimientos.php';
+const frm = document.getElementById('frm');
+const btnSubir = document.getElementById('btnSubir');
+const btnCancelar = document.getElementById('btnCancelar');
+const btnLimpiar = document.getElementById('btnLimpiar');
+const log = document.getElementById('log');
+const bar = document.getElementById('bar');
+const barWrap = document.getElementById('barWrap');
+const tbl = document.querySelector('#tblLogs tbody');
+const timer = document.getElementById('timer');
 
-frm.addEventListener('submit', async e => {
+let controller = null;
+let timerInterval = null;
+let startTime = null;
+
+/* === Función: cronómetro === */
+function startTimer() {
+  startTime = Date.now();
+  timerInterval = setInterval(() => {
+    const secs = Math.floor((Date.now() - startTime)/1000);
+    timer.textContent = `Duración: ${secs} s`;
+  }, 1000);
+}
+function stopTimer() {
+  clearInterval(timerInterval);
+  timer.textContent = '';
+}
+
+/* === Cargar historial === */
+async function cargarHistorial() {
+  try {
+    const r = await fetch(`${ENDPOINT}?accion=logs`);
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    if (!data.logs.length) {
+      tbl.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Sin registros previos.</td></tr>';
+      return;
+    }
+    tbl.innerHTML = data.logs.map(l => `
+      <tr>
+        <td>${l.filename}</td>
+        <td>${l.inserted ?? 0}</td>
+        <td>${l.skipped ?? 0}</td>
+        <td>${l.total_rows ?? 0}</td>
+        <td>${l.started_at ? new Date(l.started_at).toLocaleString() : ''}</td>
+        <td>${l.finished_at ? new Date(l.finished_at).toLocaleString() : ''}</td>
+        <td><button class="btn btn-sm btn-outline-danger" onclick="anularImport('${l.import_id}')">
+          <i class="bi bi-trash"></i></button></td>
+      </tr>`).join('');
+  } catch (err) {
+    tbl.innerHTML = `<tr><td colspan="7" class="text-danger">${err.message}</td></tr>`;
+  }
+}
+
+/* === Anular importación === */
+async function anularImport(id) {
+  if (!confirm('¿Está seguro de anular esta importación?')) return;
+  try {
+    const r = await fetch(`${ENDPOINT}?accion=anular&id=${encodeURIComponent(id)}`);
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    await cargarHistorial();
+  } catch (err) {
+    alert('Error al anular: ' + err.message);
+  }
+}
+
+/* === Envío principal === */
+frm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const fd = new FormData(frm);
   controller = new AbortController();
-  btnSubir.disabled = true; btnCancelar.disabled = false;
-  barWrap.style.display = 'block'; bar.style.width = '5%';
-  log.textContent = 'Subiendo...';
-  const startTime = Date.now();
+  btnSubir.disabled = true;
+  btnCancelar.disabled = false;
+  btnLimpiar.disabled = true;
+  barWrap.style.display = 'block';
+  bar.style.width = '5%';
+  log.textContent = '⏳ Subiendo...';
+  startTimer();
+
   try {
-    const r = await fetch(API, { method: 'POST', body: fd, signal: controller.signal });
-    bar.style.width = '70%';
-    const data = await r.json();
-    if (!data.ok) throw new Error(data.error || 'Error en importación');
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    const r = await fetch(ENDPOINT, { method: 'POST', body: fd, signal: controller.signal });
+    let data;
+    try { data = await r.json(); }
+    catch {
+      const text = await r.text();
+      throw new Error(text || 'Respuesta inválida del servidor (no es JSON)');
+    }
+
+    if (!r.ok || !data.ok) throw new Error(data.error || 'Error en importación');
+
     bar.style.width = '100%';
-    log.textContent = `✅ Importación completada
+    log.textContent = `✅ Importación completada.
 Insertados: ${data.insertados}
 Saltados: ${data.saltados}
-Total: ${data.total}
-⏱ Duración: ${elapsed}s`;
-    cargarLogs();
+Total filas: ${data.total}`;
+    await cargarHistorial();
   } catch (err) {
-    log.textContent = '⚠ ' + (err.name === 'AbortError' ? 'Importación cancelada' : err.message);
+    if (err.name === 'AbortError') {
+      log.textContent = '⛔ Importación cancelada.';
+    } else {
+      log.innerHTML = `<span class="text-danger fw-bold">⚠ Error:</span> ${err.message}`;
+    }
   } finally {
-    btnSubir.disabled = false; btnCancelar.disabled = true; controller = null;
-    setTimeout(() => { barWrap.style.display = 'none'; bar.style.width = '0%'; }, 600);
+    stopTimer();
+    btnSubir.disabled = false;
+    btnCancelar.disabled = true;
+    btnLimpiar.disabled = false;
+    controller = null;
+    setTimeout(()=>{ barWrap.style.display='none'; bar.style.width='0%'; },800);
   }
 });
 
-btnCancelar.onclick = () => { if (controller) controller.abort(); };
-btnLimpiar.onclick = () => { log.textContent = ''; bar.style.width = '0%'; barWrap.style.display = 'none'; };
+/* === Cancelar === */
+btnCancelar.addEventListener('click', ()=> {
+  if (controller) controller.abort();
+});
 
-async function cargarLogs() {
-  tbl.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Cargando...</td></tr>';
-  const r = await fetch(API + '?accion=logs');
-  const data = await r.json();
-  if (!data.ok) {
-    tbl.innerHTML = '<tr><td colspan="7" class="text-danger text-center">No se pudo cargar</td></tr>';
-    return;
-  }
-  if (!data.logs.length) {
-    tbl.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Sin registros</td></tr>';
-    return;
-  }
-  tbl.innerHTML = data.logs.map(l => {
-    let dur = '';
-    if (l.started_at && l.finished_at) {
-      const s = new Date(l.started_at);
-      const f = new Date(l.finished_at);
-      dur = ((f - s) / 1000).toFixed(1) + 's';
-    }
-    return `
-      <tr>
-        <td>${l.filename || '-'}</td>
-        <td>${l.inserted || 0}</td>
-        <td>${l.skipped || 0}</td>
-        <td>${l.total_rows || 0}</td>
-        <td>${(l.started_at || '').replace('T', ' ').split('.')[0]}</td>
-        <td>${dur}</td>
-        <td class="text-end">
-          <button class="btn btn-sm btn-outline-danger" onclick="anular('${l.import_id}')">
-            <i class="bi bi-trash"></i>
-          </button>
-        </td>
-      </tr>`;
-  }).join('');
-}
+/* === Limpiar formulario === */
+btnLimpiar.addEventListener('click', ()=> {
+  frm.reset();
+  log.textContent = '';
+  barWrap.style.display='none';
+  bar.style.width='0%';
+  stopTimer();
+});
 
-async function anular(id) {
-  if (!confirm('¿Seguro que deseas eliminar esta importación?')) return;
-  const r = await fetch(API + '?accion=anular&id=' + encodeURIComponent(id));
-  const data = await r.json();
-  if (data.ok) {
-    alert('Importación eliminada correctamente.');
-    cargarLogs();
-  } else {
-    alert('Error: ' + data.error);
-  }
-}
-
-cargarLogs();
+/* === Inicial === */
+cargarHistorial();
 </script>
 </body>
 </html>
