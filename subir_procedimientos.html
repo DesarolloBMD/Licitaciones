@@ -144,7 +144,7 @@ ${errores ? '\nErrores (primeros 10):\n' + errores : ''}`;
   // --- Cargar historial ---
   async function cargarHistorial() {
     try {
-      const r = await fetch('api/procedimientos_import_log.php');
+      const r = await fetch('api/subir_procedimientos.php');
       const data = await r.json();
       if (!data.ok) throw new Error(data.error || 'No se pudo cargar el historial');
       if (!Array.isArray(data.rows) || data.rows.length === 0) {
