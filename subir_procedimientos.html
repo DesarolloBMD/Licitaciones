@@ -8,12 +8,12 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
   <style>
-    :root{ --bg:#0b0f24; --card:#ffffff; --ink:#0e1b2a; }
-    body{ background:var(--bg); color:#eaf2ff; }
-    .card{ background:var(--card); color:var(--ink); border-radius:16px; }
-    code{ background:#eef4ff; padding:.15rem .35rem; border-radius:.35rem; }
-    .progress{ height:8px; }
-    pre.mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; white-space:pre-wrap; }
+    :root { --bg:#0b0f24; --card:#ffffff; --ink:#0e1b2a; }
+    body { background:var(--bg); color:#eaf2ff; }
+    .card { background:var(--card); color:var(--ink); border-radius:16px; }
+    code { background:#eef4ff; padding:.15rem .35rem; border-radius:.35rem; }
+    .progress { height:8px; }
+    pre.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; white-space: pre-wrap; }
   </style>
 </head>
 <body class="p-3 p-lg-5">
@@ -22,8 +22,8 @@
   <header class="mb-4">
     <h1 class="h4 m-0">Importar “Procedimientos Adjudicados”</h1>
     <div class="text-white-50 small">
-      Cargue un archivo <code>.csv</code> o <code>.xlsx</code> con encabezados:
-      <code>Mes de Descarga</code>, <code>Año de reporte</code>, <code>CEDULA</code>, <code>INSTITUCION</code>, <code>NUMERO_PROCEDIMIENTO</code>, etc.
+      Cargue un archivo <code>.csv</code> o <code>.xlsx</code> con los encabezados correctos.<br>
+      Ejemplo: <code>Mes de Descarga</code>, <code>Año de reporte</code>, <code>CEDULA</code>, <code>INSTITUCION</code>, etc.
     </div>
   </header>
 
@@ -100,12 +100,21 @@ const esc = s => (s??'').toString().replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;
 
 // ------- Historial -------
 async function loadLogs(){
+  const tb = $('#logs');
+  tb.innerHTML = `<tr><td colspan="6" class="text-muted">Cargando…</td></tr>`;
   try{
-    const r = await fetch(ENDPOINT + '?accion=logs');
-    const j = await r.json();
-    const tb = $('#logs');
-    if(!j.ok){ tb.innerHTML = `<tr><td colspan="6" class="text-danger">Error: ${esc(j.error||'')}</td></tr>`; return; }
-    if(!j.logs.length){ tb.innerHTML = `<tr><td colspan="6" class="text-muted">Sin importaciones aún.</td></tr>`; return; }
+    const r = await fetch(ENDPOINT + '?accion=logs', {cache:'no-store'});
+    const raw = await r.text();
+    let j; try { j = JSON.parse(raw); } catch { j = {ok:false, error: raw}; }
+
+    if(!r.ok || !j.ok){
+      tb.innerHTML = `<tr><td colspan="6" class="text-danger">⚠ ${esc(j.error||'No se pudo cargar')}</td></tr>`;
+      return;
+    }
+    if(!j.logs.length){
+      tb.innerHTML = `<tr><td colspan="6" class="text-muted">Sin importaciones aún.</td></tr>`;
+      return;
+    }
     tb.innerHTML = j.logs.map(row=>{
       const fecha = new Date(row.started_at).toLocaleString();
       const btn = row.anulado_at
@@ -121,9 +130,10 @@ async function loadLogs(){
       </tr>`;
     }).join('');
   }catch(e){
-    $('#logs').innerHTML = `<tr><td colspan="6" class="text-danger">Error cargando historial</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="6" class="text-danger">⚠ Error cargando historial (${e.message})</td></tr>`;
   }
 }
+
 async function anular(btn){
   const id = btn.getAttribute('data-id');
   if(!confirm('¿Anular esta importación? Se eliminarán solo las filas de ese archivo.')) return;
@@ -134,6 +144,7 @@ async function anular(btn){
   if(!j.ok) alert('Error: ' + (j.error || ''));
   loadLogs();
 }
+
 $('#btnReload').addEventListener('click', loadLogs);
 
 // ------- Progreso & Cronómetro -------
@@ -156,8 +167,7 @@ $('#frm').addEventListener('submit', async (e)=>{
   $('#btnCancel').disabled = false;
   $('#msg').textContent = 'Subiendo…';
   $('#raw').classList.add('d-none');
-  startFake();
-  startTimer();
+  startFake(); startTimer();
 
   controller = new AbortController();
   const fd = new FormData(); fd.append('archivo', file);
@@ -169,24 +179,31 @@ $('#frm').addEventListener('submit', async (e)=>{
     let j; try{ j = JSON.parse(raw); } catch{ j = { ok:false, error: raw }; }
 
     if(!r.ok || !j.ok){
-      $('#msg').innerHTML = '⚠ ' + esc(j.error || 'Error');
+      $('#msg').innerHTML = '⚠ ' + esc(j.error || 'Error al procesar archivo');
       $('#raw').classList.remove('d-none'); $('#raw').textContent = raw;
     }else{
-      $('#msg').innerHTML = `✅ Importación completada. Insertados: <strong>${j.insertados}</strong> — Saltados: <strong>${j.saltados}</strong>`;
+      $('#msg').innerHTML = `✅ Importación completada.<br>Insertados: <strong>${j.insertados}</strong> — Saltados: <strong>${j.saltados}</strong>`;
       loadLogs();
     }
   }catch(err){
     stopFake(); stopTimer();
-    $('#msg').textContent = (err.name === 'AbortError') ? '⛔ Importación cancelada.' : ('⚠ ' + (err.message || String(err)));
+    $('#msg').innerHTML = '⚠ ' + (err.name === 'AbortError' ? 'Importación cancelada.' : esc(err.message));
   }finally{
     $('#btnUpload').disabled = false;
     $('#btnCancel').disabled = true;
     controller = null;
   }
 });
+
 $('#btnCancel').addEventListener('click', ()=>{ if(controller){ controller.abort(); } });
-$('#frm').addEventListener('reset', ()=>{ if(controller){ controller.abort(); } stopFake(); stopTimer(); $('#msg').textContent=''; $('#bar').style.width='0%'; $('#pgwrap').classList.add('d-none'); $('#timerWrap').classList.add('d-none'); });
-loadLogs();
+$('#frm').addEventListener('reset', ()=>{
+  if(controller){ controller.abort(); }
+  stopFake(); stopTimer();
+  $('#msg').textContent=''; $('#bar').style.width='0%';
+  $('#pgwrap').classList.add('d-none'); $('#timerWrap').classList.add('d-none');
+});
+
+window.addEventListener('DOMContentLoaded', loadLogs);
 </script>
 </body>
 </html>
