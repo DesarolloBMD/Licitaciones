@@ -28,13 +28,11 @@
           <span class="badge text-bg-light border">Solo archivos Excel (.xlsx)</span>
         </div>
 
-        <!-- Encabezados esperados -->
         <div class="alert alert-info small" style="white-space: pre-line;">
 <b>Encabezados esperados:</b>
 Mes de Descarga | Año de Descarga | Mes de Adjudicación | Año de Adjudicación | Cédula | Institución | Año | Número de Procedimiento | Descripción de Procedimiento | Línea | Número de SICOP | Tipo de Procedimiento | Modalidad de Procedimiento | Fecha Rev | Cédula del Proveedor | Nombre del Proveedor | Perfil del Proveedor | Cédula del Representante | Representante | Objeto Gasto | Moneda Adjudicada | Monto Adjudicado por Línea | Monto Adjudicado por Línea CRC | Monto Adjudicado por Línea USD | Fecha Adjudicación Firma | Fecha Solicitud de Contrato | Producto ID | Descripción del Bien y Servicio | Cantidad | Unidad de Medida | Monto Unitario | Moneda de Precio | Fecha Solicitud de Contrato CL | Producto ID CL
         </div>
 
-        <!-- Formulario -->
         <form id="frm" enctype="multipart/form-data" class="d-flex flex-column gap-3">
           <div>
             <label class="form-label">Archivo Excel (.xlsx)</label>
@@ -100,10 +98,8 @@ Mes de Descarga | Año de Descarga | Mes de Adjudicación | Año de Adjudicació
   const tbl = document.querySelector('#tblHistorial tbody');
   let controller = null, timer = null, segundos = 0;
 
-  // Cronómetro
   function startCrono() {
     segundos = 0;
-    cronometro.textContent = "00:00";
     timer = setInterval(() => {
       segundos++;
       let m = String(Math.floor(segundos / 60)).padStart(2, '0');
@@ -113,7 +109,6 @@ Mes de Descarga | Año de Descarga | Mes de Adjudicación | Año de Adjudicació
   }
   function stopCrono() { clearInterval(timer); timer = null; }
 
-  // Subir archivo
   frm.addEventListener('submit', async e => {
     e.preventDefault();
     const fd = new FormData(frm);
@@ -121,51 +116,45 @@ Mes de Descarga | Año de Descarga | Mes de Adjudicación | Año de Adjudicació
     btnSubir.disabled = true;
     btnCancelar.disabled = false;
     barWrap.style.display = 'block';
-    bar.style.width = '5%';
+    bar.style.width = '10%';
     log.textContent = 'Subiendo...';
     startCrono();
 
     try {
       const res = await fetch(ENDPOINT, { method: 'POST', body: fd, signal: controller.signal });
-      const txt = await res.text();
+      const text = await res.text();
       let data;
-      try { data = JSON.parse(txt); } 
-      catch { throw new Error('⚠ Respuesta no válida del servidor:\n' + txt.slice(0,300)); }
+      try { data = JSON.parse(text); } 
+      catch { throw new Error('Respuesta no válida:\n' + text.slice(0,300)); }
 
       if (!data.ok) throw new Error(data.error || 'Error desconocido');
 
       bar.style.width = '100%';
-      log.textContent = `✅ Importación completada
-Insertados: ${data.insertados}
-Saltados: ${data.saltados}
-Total: ${data.total}
-ID: ${data.import_id}`;
+      log.textContent = `✅ Importación completada\nInsertados: ${data.insertados}\nSaltados: ${data.saltados}\nTotal: ${data.total}\nID: ${data.import_id}`;
       cargarHistorial();
     } catch (err) {
-      log.textContent = err.name === 'AbortError' ? '⛔ Importación cancelada.' : '⚠ Error: ' + err.message;
+      log.textContent = '⚠ ' + err.message;
     } finally {
       btnSubir.disabled = false;
       btnCancelar.disabled = true;
-      controller = null;
       stopCrono();
-      setTimeout(() => { barWrap.style.display = 'none'; bar.style.width = '0%'; }, 800);
+      setTimeout(()=>{barWrap.style.display='none';bar.style.width='0%';},1000);
     }
   });
 
-  btnCancelar.addEventListener('click', () => { if (controller) controller.abort(); });
-  btnLimpiar.addEventListener('click', () => { frm.reset(); log.textContent = ''; barWrap.style.display='none'; bar.style.width='0%'; });
+  btnCancelar.addEventListener('click', ()=>{ if (controller) controller.abort(); });
+  btnLimpiar.addEventListener('click', ()=>{ frm.reset(); log.textContent=''; });
 
-  // Cargar historial
   async function cargarHistorial() {
     try {
-      const r = await fetch(ENDPOINT + '?action=historial');
-      const data = await r.json();
-      if (!data.ok) throw new Error(data.error || 'No se pudo cargar');
+      const res = await fetch(ENDPOINT + '?action=historial');
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error);
       if (!data.rows.length) {
         tbl.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Sin registros</td></tr>';
         return;
       }
-      tbl.innerHTML = data.rows.map(x => `
+      tbl.innerHTML = data.rows.map(x=>`
         <tr>
           <td>${x.filename}</td>
           <td>${x.inserted ?? 0}</td>
@@ -179,18 +168,12 @@ ID: ${data.import_id}`;
     }
   }
 
-  // Anular importación
-  async function anularImport(id) {
-    if (!confirm('¿Seguro que desea eliminar esta importación y sus registros asociados?')) return;
-    try {
-      const res = await fetch(ENDPOINT + '?action=anular&id=' + encodeURIComponent(id));
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.error);
-      alert('Importación anulada correctamente.');
-      cargarHistorial();
-    } catch (err) {
-      alert('Error al anular: ' + err.message);
-    }
+  async function anularImport(id){
+    if (!confirm('¿Anular importación y borrar registros asociados?')) return;
+    const res = await fetch(ENDPOINT+'?action=anular&id='+encodeURIComponent(id));
+    const data = await res.json();
+    if (data.ok) cargarHistorial();
+    else alert('Error: '+data.error);
   }
 
   cargarHistorial();
