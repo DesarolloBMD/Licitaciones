@@ -52,7 +52,7 @@ if (!$mes_descarga || !$anio_descarga) {
 }
 
 /* ============================================================
-   4. Leer CSV con detección automática de delimitador
+   4. Leer CSV y detectar delimitador
    ============================================================ */
 $nombre = $_FILES['archivo']['name'];
 $tmp = $_FILES['archivo']['tmp_name'];
@@ -78,8 +78,15 @@ if (!$header) {
 }
 
 /* ============================================================
-   5. Mapear encabezados del CSV → columnas en la base
+   5. Mapear y limpiar encabezados
    ============================================================ */
+function clean_header(string $h): string {
+  $h = trim(str_replace(["\xEF\xBB\xBF", "\r", "\n", "\t"], '', $h));
+  $h = preg_replace('/\s+/u', ' ', $h);
+  $h = str_replace(['Á','É','Í','Ó','Ú','á','é','í','ó','ú'], ['A','E','I','O','U','A','E','I','O','U'], $h);
+  return strtoupper($h);
+}
+
 $mapa = [
   'CEDULA' => 'cedula',
   'INSTITUCION' => 'institucion',
@@ -90,7 +97,7 @@ $mapa = [
   'NRO_SICOP' => 'nro_sicop',
   'TIPO_PROCEDIMIENTO' => 'tipo_procedimiento',
   'MODALIDAD_PROCEDIMIENTO' => 'modalidad_procedimiento',
-  'fecha_rev' => 'fecha_rev',
+  'FECHA_REV' => 'fecha_rev',
   'CEDULA_PROVEEDOR' => 'cedula_proveedor',
   'NOMBRE_PROVEEDOR' => 'nombre_proveedor',
   'PERFIL_PROV' => 'perfil_prov',
@@ -113,16 +120,17 @@ $mapa = [
   'PROD_ID_CL' => 'prod_id_cl'
 ];
 
-/* Validar encabezados */
-$csv_cols = array_map(fn($h) => trim(str_replace(["\xEF\xBB\xBF", "\r", "\n"], '', $h)), $header);
+$csv_cols = array_map('clean_header', $header);
 $faltan = array_diff(array_keys($mapa), $csv_cols);
 $sobran = array_diff($csv_cols, array_keys($mapa));
+
 if ($faltan || $sobran) {
   echo json_encode([
     'ok' => false,
-    'error' => '⚠ Encabezados no coinciden con el formato esperado',
-    'faltan' => $faltan,
-    'sobran' => $sobran
+    'error' => 'Encabezados no coinciden',
+    'faltan' => array_values($faltan),
+    'sobran' => array_values($sobran),
+    'detectados' => array_values($csv_cols)
   ], JSON_UNESCAPED_UNICODE);
   exit;
 }
@@ -169,7 +177,7 @@ try {
 } catch (Throwable $e) {}
 
 /* ============================================================
-   8. Respuesta JSON
+   8. Respuesta final
    ============================================================ */
 echo json_encode([
   'ok' => true,
