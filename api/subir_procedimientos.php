@@ -32,7 +32,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'historial') {
 }
 
 /* ============================================================
-   3. Validar archivo y datos
+   3. Validar archivo y parámetros
    ============================================================ */
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   echo json_encode(['ok' => false, 'error' => 'Método no permitido']);
@@ -82,7 +82,7 @@ arsort($counts);
 $delimiter = key($counts);
 
 /* ============================================================
-   6. Leer y limpiar encabezados
+   6. Leer encabezados y limpiarlos
    ============================================================ */
 $header = fgetcsv($fh, 0, $delimiter);
 if (!$header) {
@@ -91,19 +91,14 @@ if (!$header) {
 }
 
 function clean_header(string $h): string {
-  $h = str_replace(
-    ["\xEF\xBB\xBF", "\r", "\n", "\t", "\u{00A0}", "\u{200B}", "\u{200C}", "\u{200D}"],
-    '',
-    trim($h)
-  );
-  $h = preg_replace('/\s+/u', ' ', $h);
-  $h = str_replace(['Á','É','Í','Ó','Ú','á','é','í','ó','ú'], ['A','E','I','O','U','A','E','I','O','U'], $h);
+  $h = str_replace(["\xEF\xBB\xBF","\r","\n","\t"], '', trim($h));
+  $h = preg_replace('/\s+/u',' ',$h);
   return strtoupper(trim($h));
 }
 $csv_cols = array_map('clean_header', $header);
 
 /* ============================================================
-   7. Mapa esperado de encabezados → columnas base
+   7. Mapa esperado de encabezados
    ============================================================ */
 $mapa = [
   'CEDULA' => 'cedula',
@@ -142,35 +137,46 @@ $mapa = [
    8. Validar encabezados
    ============================================================ */
 $faltan = array_diff(array_keys($mapa), $csv_cols);
-$sobran = array_diff($csv_cols, array_keys($mapa));
-
-if ($faltan || $sobran) {
-  echo json_encode([
-    'ok' => false,
-    'error' => 'Encabezados no coinciden con el formato esperado',
-    'faltan' => array_values($faltan),
-    'sobran' => array_values($sobran),
-    'detectados' => array_values($csv_cols)
-  ], JSON_UNESCAPED_UNICODE);
+if ($faltan) {
+  echo json_encode(['ok'=>false,'error'=>'Encabezados faltantes','faltan'=>$faltan]);
   exit;
 }
 
 /* ============================================================
-   9. Inserción masiva (con limpieza de datos y fechas)
+   9. Registrar importación antes del detalle (para FK)
+   ============================================================ */
+$import_id = uniqid('imp_');
+try {
+  $pdo->prepare('INSERT INTO public.procedimientos_import_log
+    (import_id, filename, mes_descarga, anio_descarga, total_rows, inserted, skipped, started_at, source_ip)
+    VALUES (:id,:f,:m,:a,0,0,0,now(),:ip)')
+    ->execute([
+      ':id'=>$import_id,
+      ':f'=>$nombre,
+      ':m'=>$mes_descarga,
+      ':a'=>$anio_descarga,
+      ':ip'=>$_SERVER['REMOTE_ADDR'] ?? null
+    ]);
+} catch (Throwable $e) {
+  echo json_encode(['ok'=>false,'error'=>'Error registrando importación: '.$e->getMessage()]);
+  exit;
+}
+
+/* ============================================================
+   10. Insertar filas en Procedimientos Adjudicados
    ============================================================ */
 function parseDate($val) {
   $val = trim((string)$val);
-  if ($val === '' || strtolower($val) === 'null') return null;
-  $formats = ['d/m/Y', 'd-m-Y', 'Y/m/d', 'Y-m-d'];
+  if ($val === '' || strtolower($val)==='null') return null;
+  $formats = ['d/m/Y','d-m-Y','Y/m/d','Y-m-d'];
   foreach ($formats as $f) {
     $d = DateTime::createFromFormat($f, $val);
-    if ($d && $d->format($f) === $val) return $d->format('Y-m-d');
+    if ($d) return $d->format('Y-m-d');
   }
   return null;
 }
 
 $cols_pg = array_map(fn($c) => $mapa[$c], $csv_cols);
-$import_id = uniqid('imp_');
 $sql = 'INSERT INTO public."Procedimientos Adjudicados" (import_id, mes_descarga, anio_descarga, "' . implode('","', $cols_pg) . '")
         VALUES (' . implode(',', array_fill(0, count($cols_pg) + 3, '?')) . ')';
 $stmt = $pdo->prepare($sql);
@@ -178,25 +184,16 @@ $stmt = $pdo->prepare($sql);
 $insertados = 0;
 $saltados = 0;
 $errores = [];
+
 $pdo->beginTransaction();
-
 while (($r = fgetcsv($fh, 0, $delimiter)) !== false) {
-  if (count(array_filter($r, fn($x) => trim((string)$x) !== '')) == 0) continue;
+  if (count(array_filter($r, fn($x)=>trim((string)$x)!==''))==0) continue;
 
-  // Limpiar valores vacíos
-  foreach ($r as &$v) {
-    $v = trim($v);
-    if ($v === '') $v = null;
-  }
-
-  // Convertir fechas
+  foreach ($r as &$v) $v = trim($v) === '' ? null : trim($v);
   $fechas = ['FECHA_REV','FECHA_ADJUD_FIRME','FECHA_SOL_CONTRA','FECHA_SOL_CONTRA_CL'];
-  foreach ($csv_cols as $i => $col) {
-    if (in_array($col, $fechas)) $r[$i] = parseDate($r[$i]);
-  }
+  foreach ($csv_cols as $i => $col) if (in_array($col,$fechas)) $r[$i] = parseDate($r[$i]);
 
-  $valores = array_merge([$import_id, $mes_descarga, $anio_descarga], $r);
-
+  $valores = array_merge([$import_id,$mes_descarga,$anio_descarga],$r);
   try {
     $stmt->execute($valores);
     $insertados++;
@@ -205,35 +202,31 @@ while (($r = fgetcsv($fh, 0, $delimiter)) !== false) {
     if ($saltados < 10) $errores[] = $e->getMessage();
   }
 }
-
 $pdo->commit();
 fclose($fh);
 
 /* ============================================================
-   10. Registrar importación en log
+   11. Actualizar log con totales
    ============================================================ */
 try {
-  $pdo->prepare('INSERT INTO public.procedimientos_import_log (import_id, filename, mes_descarga, anio_descarga, total_rows, inserted, skipped, started_at, finished_at, source_ip)
-                 VALUES (:id,:f,:m,:a,:t,:i,:s,now(),now(),:ip)')
-      ->execute([
-        ':id' => $import_id,
-        ':f' => $nombre,
-        ':m' => $mes_descarga,
-        ':a' => $anio_descarga,
-        ':t' => $insertados + $saltados,
-        ':i' => $insertados,
-        ':s' => $saltados,
-        ':ip' => $_SERVER['REMOTE_ADDR'] ?? null
-      ]);
+  $pdo->prepare('UPDATE public.procedimientos_import_log
+    SET total_rows=:t, inserted=:i, skipped=:s, finished_at=now()
+    WHERE import_id=:id')
+    ->execute([
+      ':t'=>$insertados+$saltados,
+      ':i'=>$insertados,
+      ':s'=>$saltados,
+      ':id'=>$import_id
+    ]);
 } catch (Throwable $e) {}
 
 /* ============================================================
-   11. Respuesta final
+   12. Respuesta final
    ============================================================ */
 echo json_encode([
-  'ok' => true,
-  'insertados' => $insertados,
-  'saltados' => $saltados,
-  'total' => $insertados + $saltados,
-  'errores' => $errores
+  'ok'=>true,
+  'insertados'=>$insertados,
+  'saltados'=>$saltados,
+  'total'=>$insertados+$saltados,
+  'errores'=>$errores
 ], JSON_UNESCAPED_UNICODE);
