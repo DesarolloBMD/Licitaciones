@@ -7,6 +7,8 @@ declare(strict_types=1);
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
+header('Content-Type: application/json; charset=utf-8');
+
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 
 /* ==========================================================
@@ -16,17 +18,18 @@ $DATABASE_URL = getenv('DATABASE_URL');
 if (!$DATABASE_URL || stripos($DATABASE_URL,'postgres')===false) {
   $DATABASE_URL = 'postgresql://licitaciones_bmd_user:vFgswY5U7MaSqqexdhjgAE5M9fBpT2OQ@dpg-d3g2v7j3fgac73c4eek0-a.oregon-postgres.render.com:5432/licitaciones_bmd?sslmode=require';
 }
+
 try {
   $p = parse_url($DATABASE_URL);
   $dsn = sprintf('pgsql:host=%s;port=%d;dbname=%s;sslmode=require',
     $p['host'], $p['port']??5432, ltrim($p['path'],'/')
   );
   $pdo = new PDO($dsn, $p['user'], $p['pass'], [
-    PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,
-    PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
   ]);
   $pdo->exec("SET datestyle TO 'ISO, DMY'");
-} catch(Throwable $e){
+} catch (Throwable $e) {
   http_response_code(500);
   echo json_encode(['ok'=>false,'error'=>'Error conexión: '.$e->getMessage()]);
   exit;
@@ -47,13 +50,9 @@ function clean_label(string $s): string {
 function norm_date(?string $s): ?string {
   $s = trim((string)$s);
   if ($s==='' || strtoupper($s)==='NULL') return null;
-
-  // quitar nombres de días o comas
   $s = preg_replace('/^(lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo),?\s*/iu', '', $s);
   $s = str_ireplace(['de '], '', $s);
   $s = str_replace([','], '', $s);
-
-  // meses en español
   $meses = [
     'enero'=>1,'febrero'=>2,'marzo'=>3,'abril'=>4,'mayo'=>5,'junio'=>6,
     'julio'=>7,'agosto'=>8,'septiembre'=>9,'setiembre'=>9,'octubre'=>10,'noviembre'=>11,'diciembre'=>12
@@ -62,7 +61,6 @@ function norm_date(?string $s): ?string {
     $dia=(int)$m[1]; $mes=$meses[strtolower($m[2])]??0; $anio=(int)$m[3];
     if($mes>0) return sprintf('%04d-%02d-%02d',$anio,$mes,$dia);
   }
-
   foreach(['d/m/Y','d-m-Y','Y-m-d'] as $fmt){
     $dt=DateTime::createFromFormat($fmt,$s);
     if($dt) return $dt->format('Y-m-d');
@@ -95,13 +93,14 @@ function norm_bigint_text(?string $s): ?string {
 }
 
 /* ==========================================================
-   3. Subida de archivo
+   3. Subida y validación
    ========================================================== */
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   http_response_code(405);
   echo json_encode(['ok'=>false,'error'=>'Método no permitido']);
   exit;
 }
+
 if (!isset($_FILES['archivo']) || $_FILES['archivo']['error'] !== UPLOAD_ERR_OK) {
   echo json_encode(['ok'=>false,'error'=>'Archivo no recibido']);
   exit;
@@ -118,13 +117,20 @@ if (!in_array($ext, ['csv','txt'])) {
 /* ==========================================================
    4. Lectura e inserción
    ========================================================== */
-$fh = fopen($tmp,'r');
+$fh = fopen($tmp, 'r');
 $firstLine = fgets($fh);
 rewind($fh);
-$delim = array_search(max([','=>substr_count($firstLine,','),';'=>substr_count($firstLine,';'),"\t"=>substr_count($firstLine,"\t")]), [','=>substr_count($firstLine,','),';'=>substr_count($firstLine,';'),"\t"=>substr_count($firstLine,"\t")]);
-$delimiter = $delim ?: ',';
-$header = fgetcsv($fh,0,$delimiter);
-$header = array_map('clean_label',$header);
+
+// ✅ delimitador corregido
+$counts = [
+  ','  => substr_count($firstLine, ','),
+  ';'  => substr_count($firstLine, ';'),
+  "\t" => substr_count($firstLine, "\t")
+];
+$delimiter = array_search(max($counts), $counts) ?: ',';
+
+$header = fgetcsv($fh, 0, $delimiter);
+$header = array_map('clean_label', $header);
 
 $cols = [
   'MES DE DESCARGA','AÑO DE REPORTE','CEDULA','INSTITUCION','ANO','NUMERO_PROCEDIMIENTO',
@@ -134,61 +140,72 @@ $cols = [
   'MONTO_ADJU_LINEA_USD','FECHA_ADJUD_FIRME','FECHA_SOL_CONTRA','PROD_ID','DESCR_BIEN_SERVICIO',
   'CANTIDAD','UNIDAD_MEDIDA','MONTO_UNITARIO','MONEDA_PRECIO_EST','FECHA_SOL_CONTRA_CL','PROD_ID_CL'
 ];
-$map=[]; foreach($header as $i=>$h){ $map[$i]=trim($h); }
 
-$sqlCols='"'.implode('","',$cols).'"';
-$sqlVals=implode(',',array_map(fn($c)=>':'.strtolower(str_replace(' ','_',$c)),$cols));
-$stmt=$pdo->prepare("INSERT INTO public.\"Procedimientos Adjudicados\" ($sqlCols) VALUES ($sqlVals)");
+// ✅ Validar encabezados
+$diff = array_diff($cols, $header);
+if (count($diff) > 0) {
+  echo json_encode(['ok'=>false,'error'=>'Encabezados no coinciden con el formato esperado','faltantes'=>$diff]);
+  fclose($fh);
+  exit;
+}
 
-$insertados=0; $saltados=0; $errores=[];
+// ✅ Nombre de tabla corregido
+$stmt = $pdo->prepare('INSERT INTO public.procedimientos_adjudicados ("' . implode('","', $cols) . '") VALUES (' .
+  implode(',', array_map(fn($c) => ':' . strtolower(str_replace(' ','_',$c)), $cols)) . ')');
+
+$insertados = 0; $saltados = 0; $errores = [];
 $pdo->beginTransaction();
 
-while(($r=fgetcsv($fh,0,$delimiter))!==false){
-  if(count(array_filter($r,fn($x)=>trim((string)$x)!=''))==0) continue;
-  $params=[];
-  foreach($cols as $i=>$c){
-    $val=$r[$i]??null;
-    $key=':'.strtolower(str_replace(' ','_',$c));
-    switch($c){
-      case 'FECHA_REV':case 'FECHA_ADJUD_FIRME':case 'FECHA_SOL_CONTRA':case 'FECHA_SOL_CONTRA_CL':
-        $params[$key]=norm_date($val); break;
-      case 'MONTO_ADJU_LINEA':case 'MONTO_ADJU_LINEA_CRC':case 'MONTO_ADJU_LINEA_USD':
-      case 'CANTIDAD':case 'MONTO_UNITARIO':
-        $params[$key]=norm_num($val); break;
-      case 'PROD_ID':case 'PROD_ID_CL':
-        $params[$key]=norm_bigint_text($val); break;
+while (($r = fgetcsv($fh, 0, $delimiter)) !== false) {
+  if (count(array_filter($r, fn($x)=>trim((string)$x)!='')) == 0) continue;
+  if (count($r) < count($cols)) { $saltados++; continue; }
+
+  $params = [];
+  foreach ($cols as $i => $c) {
+    $val = $r[$i] ?? null;
+    $key = ':' . strtolower(str_replace(' ','_',$c));
+    switch ($c) {
+      case 'FECHA_REV': case 'FECHA_ADJUD_FIRME': case 'FECHA_SOL_CONTRA': case 'FECHA_SOL_CONTRA_CL':
+        $params[$key] = norm_date($val); break;
+      case 'MONTO_ADJU_LINEA': case 'MONTO_ADJU_LINEA_CRC': case 'MONTO_ADJU_LINEA_USD':
+      case 'CANTIDAD': case 'MONTO_UNITARIO':
+        $params[$key] = norm_num($val); break;
+      case 'PROD_ID': case 'PROD_ID_CL':
+        $params[$key] = norm_bigint_text($val); break;
       default:
-        $params[$key]=trim((string)$val)?:null; break;
+        $params[$key] = trim((string)$val) ?: null; break;
     }
   }
-  try{ $stmt->execute($params); $insertados++; }
-  catch(Throwable $e){ $saltados++; if($saltados<20)$errores[]=$e->getMessage(); }
+
+  try { $stmt->execute($params); $insertados++; }
+  catch (Throwable $e) { $saltados++; if ($saltados < 20) $errores[] = $e->getMessage(); }
 }
+
 $pdo->commit();
 fclose($fh);
 
 /* ==========================================================
-   5. Registrar importación en log
+   5. Registrar log
    ========================================================== */
-try{
-  $pdo->prepare("INSERT INTO procedimientos_import_log (import_id,archivo,insertados,saltados,total_filas,inicio,fin,modo)
+try {
+  $pdo->prepare("INSERT INTO procedimientos_import_log (import_id, archivo, insertados, saltados, total_filas, inicio, fin, modo)
                  VALUES (:id,:f,:i,:s,:t,now(),now(),'csv')")
       ->execute([
-        ':id'=>'imp_'.uniqid(),
-        ':f'=>$name,
-        ':i'=>$insertados,
-        ':s'=>$saltados,
-        ':t'=>$insertados+$saltados
+        ':id' => 'imp_' . uniqid(),
+        ':f'  => $name,
+        ':i'  => $insertados,
+        ':s'  => $saltados,
+        ':t'  => $insertados + $saltados
       ]);
-}catch(Throwable $e){/* no fatal */}
+} catch (Throwable $e) { /* no fatal */ }
 
 /* ==========================================================
    6. Respuesta JSON
    ========================================================== */
 echo json_encode([
-  'ok'=>true,
-  'insertados'=>$insertados,
-  'saltados'=>$saltados,
-  'total'=>$insertados+$saltados,
-  'errores'=>$errores
-],JSON_UNESCAPED_UNICODE);
+  'ok' => true,
+  'insertados' => $insertados,
+  'saltados' => $saltados,
+  'total' => $insertados + $saltados,
+  'errores' => $errores
+], JSON_UNESCAPED_UNICODE);
