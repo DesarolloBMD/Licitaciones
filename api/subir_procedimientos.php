@@ -82,6 +82,26 @@ if (!in_array($ext, ['csv','txt'])) {
 }
 
 /* ==========================================================
+   2.1. Consultar historial (GET)
+   ========================================================== */
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'historial') {
+  try {
+    $stmt = $pdo->query("
+      SELECT import_id, filename, mes_descarga, anio_descarga, inserted, skipped, total_rows, finished_at
+      FROM public.procedimientos_import_log
+      WHERE anulado_at IS NULL
+      ORDER BY finished_at DESC
+      LIMIT 50
+    ");
+    $rows = $stmt->fetchAll();
+    echo json_encode(['ok'=>true, 'rows'=>$rows], JSON_UNESCAPED_UNICODE);
+  } catch(Throwable $e) {
+    echo json_encode(['ok'=>false, 'error'=>'Error al cargar historial: '.$e->getMessage()]);
+  }
+  exit;
+}
+
+/* ==========================================================
    4. Validación de duplicados
    ========================================================== */
 $hash = md5_file($tmp);
