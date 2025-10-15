@@ -94,7 +94,7 @@
             <th>Saltados</th>
             <th>Total</th>
             <th>Fecha</th>
-            <th></th>
+            <th>Anular</th>
           </tr>
           </thead>
           <tbody><tr><td colspan="8" class="text-center text-muted">Cargando...</td></tr></tbody>
@@ -106,6 +106,7 @@
 
 <script>
 const ENDPOINT = "api/subir_procedimientos.php";
+const ANULAR_API = "api/anular_importacion_procedimientos.php";
 const frm = document.getElementById('frm');
 const barWrap = document.getElementById('barWrap');
 const bar = document.getElementById('bar');
@@ -117,6 +118,7 @@ const btnLimpiar = document.getElementById('btnLimpiar');
 const cronometro = document.getElementById('cronometro');
 let controller = null, timer = null, segundos = 0;
 
+// === SUBIR ARCHIVO ===
 frm.addEventListener('submit', async e => {
   e.preventDefault();
   const fd = new FormData(frm);
@@ -128,44 +130,46 @@ frm.addEventListener('submit', async e => {
   log.textContent = '⏳ Subiendo...';
   segundos = 0;
   cronometro.textContent = "0s";
-  timer = setInterval(()=>{ segundos++; cronometro.textContent = segundos+'s'; },1000);
+  timer = setInterval(() => { segundos++; cronometro.textContent = segundos + 's'; }, 1000);
 
   try {
-    const res = await fetch(ENDPOINT, { method:'POST', body:fd, signal:controller.signal });
+    const res = await fetch(ENDPOINT, { method: 'POST', body: fd, signal: controller.signal });
     const txt = await res.text();
     let data;
-    try { data = JSON.parse(txt); } catch { throw new Error('⚠ Respuesta no válida del servidor:\n' + txt.slice(0,300)); }
+    try { data = JSON.parse(txt); } 
+    catch { throw new Error('⚠ Respuesta no válida del servidor:\n' + txt.slice(0, 300)); }
 
     if (!data.ok) throw new Error(data.error || 'Error desconocido en la importación');
 
     bar.style.width = '100%';
-    const errores = (data.errores || []).slice(0,10).map(e => '- '+e).join('\n');
-    log.textContent = `✅ Importación completada\nInsertados: ${data.insertados}\nSaltados: ${data.saltados}\nTotal: ${data.total}\n${errores ? '\nErrores:\n'+errores : ''}`;
+    const errores = (data.errores || []).slice(0, 10).map(e => '- ' + e).join('\n');
+    log.textContent = `✅ Importación completada\nInsertados: ${data.insertados}\nSaltados: ${data.saltados}\nTotal: ${data.total}\n${errores ? '\nErrores:\n' + errores : ''}`;
     cargarHistorial();
-  } catch(err){
-    log.textContent = err.name==='AbortError' ? '⛔ Importación cancelada.' : '⚠ '+err.message;
+  } catch (err) {
+    log.textContent = err.name === 'AbortError' ? '⛔ Importación cancelada.' : '⚠ ' + err.message;
   } finally {
     btnSubir.disabled = false;
     btnCancelar.disabled = true;
     clearInterval(timer);
     controller = null;
-    setTimeout(()=>{ barWrap.style.display='none'; bar.style.width='0%'; }, 800);
+    setTimeout(() => { barWrap.style.display = 'none'; bar.style.width = '0%'; }, 800);
   }
 });
 
-btnCancelar.addEventListener('click',()=>{ if(controller) controller.abort(); });
-btnLimpiar.addEventListener('click',()=>{ frm.reset(); log.textContent=''; bar.style.width='0%'; barWrap.style.display='none'; cronometro.textContent=''; });
+btnCancelar.addEventListener('click', () => { if (controller) controller.abort(); });
+btnLimpiar.addEventListener('click', () => { frm.reset(); log.textContent = ''; bar.style.width = '0%'; barWrap.style.display = 'none'; cronometro.textContent = ''; });
 
-async function cargarHistorial(){
-  try{
-    const r = await fetch(ENDPOINT+'?action=historial');
+// === HISTORIAL ===
+async function cargarHistorial() {
+  try {
+    const r = await fetch(ENDPOINT + '?action=historial');
     const data = await r.json();
-    if(!data.ok) throw new Error(data.error || 'Error al cargar historial');
-    if(!Array.isArray(data.rows) || !data.rows.length){
-      tbl.innerHTML='<tr><td colspan="8" class="text-center text-muted">Sin registros</td></tr>';
+    if (!data.ok) throw new Error(data.error || 'Error al cargar historial');
+    if (!Array.isArray(data.rows) || !data.rows.length) {
+      tbl.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Sin registros</td></tr>';
       return;
     }
-    tbl.innerHTML = data.rows.map(x=>`
+    tbl.innerHTML = data.rows.map(x => `
       <tr>
         <td>${x.filename || '(sin nombre)'}</td>
         <td>${x.mes_descarga || '-'}</td>
@@ -175,29 +179,40 @@ async function cargarHistorial(){
         <td>${x.total_rows ?? (x.inserted + x.skipped ?? 0)}</td>
         <td>${x.finished_at ? new Date(x.finished_at).toLocaleString() : '-'}</td>
         <td>
-          <button class="btn btn-sm btn-outline-danger" onclick="anularImportacion('${x.import_id}')">
-            <i class="bi bi-trash"></i>
-          </button>
+          ${x.anulado_at 
+            ? '<span class="badge bg-secondary">Anulado</span>' 
+            : `<button class="btn btn-sm btn-outline-danger" onclick="anularImportacion('${x.import_id}')">
+                 <i class="bi bi-trash"></i>
+               </button>`}
         </td>
       </tr>`).join('');
-  }catch(err){
-    tbl.innerHTML=`<tr><td colspan="8" class="text-danger text-center">Error al cargar historial.<br>${err.message}</td></tr>`;
+  } catch (err) {
+    tbl.innerHTML = `<tr><td colspan="8" class="text-danger text-center">Error al cargar historial.<br>${err.message}</td></tr>`;
   }
 }
 
-async function anularImportacion(id){
-  if(!confirm('¿Seguro desea anular esta importación?')) return;
-  try{
-    const r = await fetch('api/anular_importacion.php?id='+id);
-    const d = await r.json();
-    if(!d.ok) throw new Error(d.error || 'Error al anular');
-    alert('Importación anulada correctamente');
+// === ANULAR ===
+async function anularImportacion(importId) {
+  const motivo = prompt(`Motivo de anulación para ${importId}:`, 'Corrección de datos');
+  if (!motivo) return;
+
+  try {
+    const res = await fetch(ANULAR_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ import_id: importId, motivo })
+    });
+    const data = await res.json();
+
+    if (!data.ok) throw new Error(data.error || 'Error desconocido al anular');
+    alert(data.mensaje);
     cargarHistorial();
-  }catch(e){ alert('Error: '+e.message); }
+  } catch (err) {
+    alert('⚠ ' + err.message);
+  }
 }
 
 cargarHistorial();
 </script>
-
 </body>
 </html>
