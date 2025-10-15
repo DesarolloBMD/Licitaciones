@@ -156,8 +156,19 @@ if ($faltan || $sobran) {
 }
 
 /* ============================================================
-   9. Inserción masiva
+   9. Inserción masiva (con limpieza de datos y fechas)
    ============================================================ */
+function parseDate($val) {
+  $val = trim((string)$val);
+  if ($val === '' || strtolower($val) === 'null') return null;
+  $formats = ['d/m/Y', 'd-m-Y', 'Y/m/d', 'Y-m-d'];
+  foreach ($formats as $f) {
+    $d = DateTime::createFromFormat($f, $val);
+    if ($d && $d->format($f) === $val) return $d->format('Y-m-d');
+  }
+  return null;
+}
+
 $cols_pg = array_map(fn($c) => $mapa[$c], $csv_cols);
 $import_id = uniqid('imp_');
 $sql = 'INSERT INTO public."Procedimientos Adjudicados" (import_id, mes_descarga, anio_descarga, "' . implode('","', $cols_pg) . '")
@@ -171,10 +182,30 @@ $pdo->beginTransaction();
 
 while (($r = fgetcsv($fh, 0, $delimiter)) !== false) {
   if (count(array_filter($r, fn($x) => trim((string)$x) !== '')) == 0) continue;
+
+  // Limpiar valores vacíos
+  foreach ($r as &$v) {
+    $v = trim($v);
+    if ($v === '') $v = null;
+  }
+
+  // Convertir fechas
+  $fechas = ['FECHA_REV','FECHA_ADJUD_FIRME','FECHA_SOL_CONTRA','FECHA_SOL_CONTRA_CL'];
+  foreach ($csv_cols as $i => $col) {
+    if (in_array($col, $fechas)) $r[$i] = parseDate($r[$i]);
+  }
+
   $valores = array_merge([$import_id, $mes_descarga, $anio_descarga], $r);
-  try { $stmt->execute($valores); $insertados++; }
-  catch (Throwable $e) { $saltados++; if ($saltados < 10) $errores[] = $e->getMessage(); }
+
+  try {
+    $stmt->execute($valores);
+    $insertados++;
+  } catch (Throwable $e) {
+    $saltados++;
+    if ($saltados < 10) $errores[] = $e->getMessage();
+  }
 }
+
 $pdo->commit();
 fclose($fh);
 
