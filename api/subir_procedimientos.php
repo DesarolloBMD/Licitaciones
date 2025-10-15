@@ -60,6 +60,26 @@ function clean_string(?string $s): ?string {
 }
 
 /* ==========================================================
+   2.1. Consultar historial (GET)
+   ========================================================== */
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'historial') {
+  try {
+    $stmt = $pdo->query("
+      SELECT import_id, filename, mes_descarga, anio_descarga, inserted, skipped, total_rows, finished_at
+      FROM public.procedimientos_import_log
+      WHERE anulado_at IS NULL
+      ORDER BY finished_at DESC
+      LIMIT 50
+    ");
+    $rows = $stmt->fetchAll();
+    echo json_encode(['ok'=>true, 'rows'=>$rows], JSON_UNESCAPED_UNICODE);
+  } catch(Throwable $e) {
+    echo json_encode(['ok'=>false, 'error'=>'Error al cargar historial: '.$e->getMessage()]);
+  }
+  exit;
+}
+
+/* ==========================================================
    3. Validación de método y archivo
    ========================================================== */
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -78,26 +98,6 @@ $tmp  = $_FILES['archivo']['tmp_name'];
 $ext  = strtolower(pathinfo($name, PATHINFO_EXTENSION));
 if (!in_array($ext, ['csv','txt'])) {
   echo json_encode(['ok'=>false,'error'=>'Solo se permiten archivos CSV o TXT']);
-  exit;
-}
-
-/* ==========================================================
-   2.1. Consultar historial (GET)
-   ========================================================== */
-if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'historial') {
-  try {
-    $stmt = $pdo->query("
-      SELECT import_id, filename, mes_descarga, anio_descarga, inserted, skipped, total_rows, finished_at
-      FROM public.procedimientos_import_log
-      WHERE anulado_at IS NULL
-      ORDER BY finished_at DESC
-      LIMIT 50
-    ");
-    $rows = $stmt->fetchAll();
-    echo json_encode(['ok'=>true, 'rows'=>$rows], JSON_UNESCAPED_UNICODE);
-  } catch(Throwable $e) {
-    echo json_encode(['ok'=>false, 'error'=>'Error al cargar historial: '.$e->getMessage()]);
-  }
   exit;
 }
 
