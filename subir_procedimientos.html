@@ -5,29 +5,38 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Importar Procedimientos Adjudicados</title>
 
-  <!-- Bootstrap y estilos -->
+  <!-- Bootstrap -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-  <link href="css/subir_procedimientos.css" rel="stylesheet">
-</head>
 
-<body>
-  <section class="hero text-center text-light py-5">
+  <style>
+    :root{
+      --acento:#0B4912;
+      --acento-2:#126a1a;
+    }
+    body{ background:#f7faf9; color:#112; font-family:system-ui,sans-serif; }
+    .hero{ background:linear-gradient(90deg,var(--acento),var(--acento-2)); color:#fff; padding:2.5rem 0; }
+    .card{ border-radius:16px; box-shadow:0 4px 12px rgba(0,0,0,.08); }
+    .btn-acento{ background:var(--acento); color:#fff; border:none; }
+    .btn-acento:hover{ filter:brightness(1.1); color:#fff; }
+    .progress{ height:10px; border-radius:8px; }
+    .progress-bar{ font-size:.8rem; font-weight:500; }
+    pre{ background:#f4f5f7; border-radius:10px; border:1px solid #ddd; padding:10px; }
+  </style>
+</head>
+<body class="pb-5">
+
+  <section class="hero text-center">
     <div class="container">
-      <h1><i class="bi bi-cloud-upload me-2"></i>Importar Procedimientos Adjudicados</h1>
-      <p class="lead">Carga, validación y control de importaciones CSV/TXT</p>
+      <h1 class="h3 mb-1"><i class="bi bi-cloud-upload me-2"></i>Importar Procedimientos Adjudicados</h1>
+      <p class="mb-0">Carga, validación y control de importaciones CSV/TXT</p>
     </div>
   </section>
 
-  <main class="container my-5" style="max-width:1100px;">
-    <div class="glass p-4 p-lg-5">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h4 class="text-success m-0"><i class="bi bi-filetype-csv me-2"></i>Gestor de carga</h4>
-        <a href="index.html" class="btn btn-outline-secondary btn-sm">
-          <i class="bi bi-house-door me-1"></i> Ir al inicio
-        </a>
-      </div>
+  <main class="container my-5" style="max-width:1050px;">
+    <div class="card p-4 p-lg-5">
 
+      <!-- Formulario principal -->
       <form id="frm" enctype="multipart/form-data" class="d-flex flex-column gap-3">
         <div class="row g-3">
           <div class="col-md-6">
@@ -53,11 +62,12 @@
           <label class="form-label">Archivo de procedimientos (.csv o .txt)</label>
           <input type="file" name="archivo" id="archivo" class="form-control" accept=".csv,.txt" required>
           <div class="form-text">
-            Asegúrese de que los encabezados coincidan exactamente con el formato esperado.
+            Asegúrese de que los encabezados coincidan con el formato esperado.<br>
+            Ejemplo: <code>CEDULA;INSTITUCION;ANO;NUMERO_PROCEDIMIENTO;...</code>
           </div>
         </div>
 
-        <div class="d-flex gap-2 align-items-center">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
           <button id="btnSubir" type="submit" class="btn btn-acento">
             <i class="bi bi-upload me-1"></i> Subir e importar
           </button>
@@ -67,49 +77,149 @@
           <button id="btnLimpiar" type="button" class="btn btn-outline-secondary">
             <i class="bi bi-trash me-1"></i> Limpiar
           </button>
-          <span id="cronometro" class="text-muted ms-auto small"></span>
+          <a href="index.html" class="btn btn-outline-success ms-auto">
+            <i class="bi bi-house-door me-1"></i> Ir al inicio
+          </a>
         </div>
 
-        <div id="barWrap" class="progress mt-2" style="display:none;">
-          <div id="bar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width:0%">0%</div>
+        <div id="barWrap" class="progress mt-3" style="display:none;">
+          <div id="bar" class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%">0%</div>
         </div>
 
-        <pre id="log" class="mono small p-2 bg-light border rounded" style="white-space:pre-wrap;max-height:320px;overflow:auto;"></pre>
+        <pre id="log" class="small"></pre>
       </form>
 
       <hr class="my-4">
 
-      <h5 class="mb-3 text-success"><i class="bi bi-clock-history me-2"></i>Historial de importaciones recientes</h5>
-      <div class="table-responsive">
-        <table id="tblHistorial" class="table table-sm table-hover align-middle text-nowrap">
-          <thead class="table-success-subtle">
-            <tr>
-              <th>Import ID</th><th>Archivo</th><th>Mes</th><th>Año</th><th>Insertados</th>
-              <th>Saltados</th><th>Total</th><th>Fecha</th><th></th>
-            </tr>
-          </thead>
-          <tbody><tr><td colspan="9" class="text-center text-muted">Cargando...</td></tr></tbody>
-        </table>
-      </div>
+      <h5 class="mb-3 text-success">
+        <i class="bi bi-clock-history me-2"></i>Registro completo de importaciones
+      </h5>
 
-      <hr class="my-4">
-
-      <h5 class="mb-3 text-primary"><i class="bi bi-journal-text me-2"></i>Registro completo de importaciones</h5>
       <div class="table-responsive">
-        <table id="tblLogCompleto" class="table table-sm table-hover align-middle text-nowrap small">
+        <table id="tblHistorial" class="table table-sm table-hover align-middle">
           <thead class="table-light">
-            <tr>
-              <th>Import ID</th><th>Archivo</th><th>Mes</th><th>Año</th><th>Insertados</th>
-              <th>Saltados</th><th>Total</th><th>Inicio</th><th>Fin</th><th>IP</th>
-              <th>Hash</th><th>Anulado</th><th></th>
-            </tr>
+          <tr>
+            <th>Archivo</th>
+            <th>Mes</th>
+            <th>Año</th>
+            <th>Total</th>
+            <th>Insertados</th>
+            <th>Saltados</th>
+            <th>Finalizado</th>
+            <th></th>
+          </tr>
           </thead>
-          <tbody><tr><td colspan="13" class="text-center text-muted">Cargando...</td></tr></tbody>
+          <tbody><tr><td colspan="8" class="text-center text-muted">Cargando...</td></tr></tbody>
         </table>
       </div>
     </div>
   </main>
 
-  <script src="js/subir_procedimientos.js"></script>
+  <script>
+  const ENDPOINT = "api/subir_procedimientos.php";
+  const frm = document.getElementById('frm');
+  const barWrap = document.getElementById('barWrap');
+  const bar = document.getElementById('bar');
+  const log = document.getElementById('log');
+  const tbl = document.querySelector('#tblHistorial tbody');
+  const btnSubir = document.getElementById('btnSubir');
+  const btnCancelar = document.getElementById('btnCancelar');
+  const btnLimpiar = document.getElementById('btnLimpiar');
+  let controller = null;
+
+  frm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(frm);
+    controller = new AbortController();
+    btnSubir.disabled = true;
+    btnCancelar.disabled = false;
+    barWrap.style.display = 'block';
+    bar.style.width = '5%';
+    bar.textContent = '0%';
+    log.textContent = '⏳ Subiendo archivo...';
+
+    // animación de progreso mientras carga
+    let progress = 5;
+    const sim = setInterval(() => {
+      if(progress < 90){
+        progress += Math.random()*5;
+        bar.style.width = progress.toFixed(0)+'%';
+        bar.textContent = progress.toFixed(0)+'%';
+      }
+    }, 500);
+
+    try {
+      const res = await fetch(ENDPOINT, { method:'POST', body:fd, signal:controller.signal });
+      const txt = await res.text();
+      clearInterval(sim);
+
+      let data;
+      try { data = JSON.parse(txt); } catch { throw new Error('⚠ Respuesta no válida del servidor:\n' + txt.slice(0,300)); }
+
+      if (!data.ok) throw new Error(data.error || 'Error desconocido en la importación');
+
+      bar.style.width = '100%';
+      bar.textContent = '100%';
+
+      const errores = (data.errores || []).slice(0,10).map(e => '- '+e).join('\n');
+      log.textContent = `✅ Importación completada\nInsertados: ${data.insertados}\nSaltados: ${data.saltados}\nTotal: ${data.total}\n${errores ? '\nErrores:\n'+errores : ''}`;
+      cargarHistorial();
+    } catch(err){
+      clearInterval(sim);
+      log.textContent = err.name==='AbortError' ? '⛔ Importación cancelada.' : '⚠ '+err.message;
+    } finally {
+      btnSubir.disabled = false;
+      btnCancelar.disabled = true;
+      controller = null;
+      setTimeout(()=>{ barWrap.style.display='none'; bar.style.width='0%'; }, 1200);
+    }
+  });
+
+  btnCancelar.addEventListener('click',()=>{ if(controller) controller.abort(); });
+  btnLimpiar.addEventListener('click',()=>{ frm.reset(); log.textContent=''; bar.style.width='0%'; bar.textContent=''; barWrap.style.display='none'; });
+
+  async function cargarHistorial(){
+    try{
+      const r = await fetch(ENDPOINT+'?action=historial');
+      const data = await r.json();
+      if(!data.ok) throw new Error(data.error || 'Error al cargar historial');
+      if(!Array.isArray(data.rows) || !data.rows.length){
+        tbl.innerHTML='<tr><td colspan="8" class="text-center text-muted">Sin registros</td></tr>';
+        return;
+      }
+      tbl.innerHTML = data.rows.map(x=>`
+        <tr>
+          <td>${x.filename || '(sin nombre)'}</td>
+          <td>${x.mes_descarga || '-'}</td>
+          <td>${x.anio_descarga || '-'}</td>
+          <td>${x.total_rows ?? 0}</td>
+          <td>${x.inserted ?? 0}</td>
+          <td>${x.skipped ?? 0}</td>
+          <td>${x.finished_at ? new Date(x.finished_at).toLocaleString() : '-'}</td>
+          <td>
+            <button class="btn btn-sm btn-outline-danger" onclick="anularImportacion('${x.import_id}')">
+              <i class="bi bi-trash"></i>
+            </button>
+          </td>
+        </tr>`).join('');
+    }catch(err){
+      tbl.innerHTML=`<tr><td colspan="8" class="text-danger text-center">Error al cargar historial.<br>${err.message}</td></tr>`;
+    }
+  }
+
+  async function anularImportacion(id){
+    if(!confirm('¿Seguro desea anular esta importación?')) return;
+    try{
+      const r = await fetch('api/anular_importacion_log.php?id='+id);
+      const d = await r.json();
+      if(!d.ok) throw new Error(d.error || 'Error al anular');
+      alert('✅ Importación anulada correctamente');
+      cargarHistorial();
+    }catch(e){ alert('Error: '+e.message); }
+  }
+
+  cargarHistorial();
+  </script>
+
 </body>
 </html>
