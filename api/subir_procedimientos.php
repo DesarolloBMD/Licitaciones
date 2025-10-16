@@ -156,19 +156,41 @@ if(count($diff)>0){
 }
 
 /* ==========================================================
-   6. Preparar inserción
+   6. Registrar primero la importación en el log
    ========================================================== */
-$sqlCols = implode(',', array_map(fn($c)=>strtolower($c), $expected)) . ', mes_descarga, anio_descarga, import_id';
+$insertados=0; $saltados=0; $errores=[];
+$import_id = 'imp_'.uniqid();
+
+try {
+  $pdo->beginTransaction();
+  $pdo->prepare("
+    INSERT INTO public.procedimientos_import_log
+      (import_id, filename, mes_descarga, anio_descarga, total_rows, inserted, skipped,
+       started_at, finished_at, source_ip, file_hash)
+    VALUES
+      (:id, :f, :m, :a, 0, 0, 0, NOW(), NULL, :ip, :h)
+  ")->execute([
+    ':id'=>$import_id,
+    ':f'=>$name,
+    ':m'=>$_POST['mes_descarga'] ?? null,
+    ':a'=>$_POST['anio_descarga'] ?? null,
+    ':ip'=>$_SERVER['REMOTE_ADDR'] ?? null,
+    ':h'=>$hash
+  ]);
+  $pdo->commit();
+} catch(Throwable $e) {
+  echo json_encode(['ok'=>false,'error'=>'Error registrando inicio de importación: '.$e->getMessage()]);
+  exit;
+}
+
+/* ==========================================================
+   7. Inserción de Procedimientos Adjudicados
+   ========================================================== */
+$sqlCols = '"' . implode('","', $expected) . '", "mes_descarga", "anio_descarga", "import_id"';
 $sqlVals = implode(',', array_map(fn($c)=>':'.strtolower($c), $expected)) . ', :mes, :anio, :import_id';
 $stmt = $pdo->prepare("INSERT INTO public.\"Procedimientos Adjudicados\" ($sqlCols) VALUES ($sqlVals)");
 
-$insertados=0; $saltados=0; $errores=[];
-$import_id = 'imp_'.uniqid();
 $pdo->beginTransaction();
-
-/* ==========================================================
-   7. Leer e insertar filas
-   ========================================================== */
 while(($r=fgetcsv($fh,0,$delimiter))!==false){
   if(count(array_filter($r,fn($x)=>trim((string)$x)!=''))==0) continue;
   $params=[];
@@ -193,34 +215,33 @@ while(($r=fgetcsv($fh,0,$delimiter))!==false){
   $params[':mes'] = $_POST['mes_descarga'] ?? null;
   $params[':anio'] = $_POST['anio_descarga'] ?? null;
   $params[':import_id'] = $import_id;
-  try{ $stmt->execute($params); $insertados++; }
-  catch(Throwable $e){ $saltados++; if($saltados<10)$errores[]=$e->getMessage(); }
+  try {
+    $stmt->execute($params);
+    $insertados++;
+  } catch(Throwable $e) {
+    $saltados++;
+    if($saltados < 10) $errores[] = $e->getMessage();
+  }
 }
-$pdo->commit();
 fclose($fh);
+$pdo->commit();
 
 /* ==========================================================
-   8. Registrar importación
+   8. Actualizar log con totales
    ========================================================== */
-try{
+try {
   $pdo->prepare("
-    INSERT INTO public.procedimientos_import_log
-      (import_id, filename, mes_descarga, anio_descarga, total_rows, inserted, skipped, started_at, finished_at, source_ip, file_hash)
-    VALUES
-      (:id, :f, :m, :a, :t, :i, :s, NOW(), NOW(), :ip, :h)
+    UPDATE public.procedimientos_import_log
+    SET total_rows = :t, inserted = :i, skipped = :s, finished_at = NOW()
+    WHERE import_id = :id
   ")->execute([
-    ':id'=>$import_id,
-    ':f'=>$name,
-    ':m'=>$_POST['mes_descarga'] ?? null,
-    ':a'=>$_POST['anio_descarga'] ?? null,
     ':t'=>$insertados+$saltados,
     ':i'=>$insertados,
     ':s'=>$saltados,
-    ':ip'=>$_SERVER['REMOTE_ADDR'] ?? null,
-    ':h'=>$hash
+    ':id'=>$import_id
   ]);
-}catch(Throwable $e){
-  $errores[]='Error registrando importación: '.$e->getMessage();
+} catch(Throwable $e){
+  $errores[] = 'Error actualizando totales: '.$e->getMessage();
 }
 
 /* ==========================================================
@@ -232,4 +253,4 @@ echo json_encode([
   'saltados'=>$saltados,
   'total'=>$insertados+$saltados,
   'errores'=>$errores
-],JSON_UNESCAPED_UNICODE);
+], JSON_UNESCAPED_UNICODE);
