@@ -1,12 +1,9 @@
 <?php
-// subir_procedimientos.php
 declare(strict_types=1);
-
-// Extender límites de ejecución y memoria
-ini_set('memory_limit','2G');
-ini_set('max_execution_time','600');
-ini_set('upload_max_filesize','1024M');
-ini_set('post_max_size','1024M');
+@ini_set('memory_limit','2G');
+@set_time_limit(0);
+@ini_set('upload_max_filesize','100M');
+@ini_set('post_max_size','100M');
 
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
@@ -60,7 +57,7 @@ function clean_string(?string $s): ?string {
 }
 
 /* ==========================================================
-   2.1. Historial (GET)
+   2.1. Consultar historial
    ========================================================== */
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'historial') {
   try {
@@ -69,11 +66,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'histori
       FROM public.procedimientos_import_log
       WHERE anulado_at IS NULL
       ORDER BY finished_at DESC
-      LIMIT 50
+      LIMIT 100
     ");
-    echo json_encode(['ok'=>true, 'rows'=>$stmt->fetchAll()], JSON_UNESCAPED_UNICODE);
+    $rows = $stmt->fetchAll();
+    echo json_encode(['ok'=>true, 'rows'=>$rows], JSON_UNESCAPED_UNICODE);
   } catch(Throwable $e) {
-    echo json_encode(['ok'=>false,'error'=>$e->getMessage()]);
+    echo json_encode(['ok'=>false, 'error'=>'Error al cargar historial: '.$e->getMessage()]);
   }
   exit;
 }
@@ -86,6 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   echo json_encode(['ok'=>false,'error'=>'Método no permitido']);
   exit;
 }
+
 if (!isset($_FILES['archivo']) || $_FILES['archivo']['error'] !== UPLOAD_ERR_OK) {
   echo json_encode(['ok'=>false,'error'=>'Archivo no recibido']);
   exit;
@@ -100,92 +99,75 @@ if (!in_array($ext, ['csv','txt'])) {
 }
 
 /* ==========================================================
-   4. Validación de duplicados
+   4. Evitar duplicados
    ========================================================== */
 $hash = md5_file($tmp);
 $check = $pdo->prepare("
-  SELECT COUNT(*) 
-  FROM public.procedimientos_import_log 
-  WHERE (filename = :f OR file_hash = :h)
-    AND anulado_at IS NULL
+  SELECT COUNT(*) FROM public.procedimientos_import_log 
+  WHERE (filename = :f OR file_hash = :h) AND anulado_at IS NULL
 ");
 $check->execute([':f'=>$name, ':h'=>$hash]);
 if ($check->fetchColumn() > 0) {
-  echo json_encode([
-    'ok'=>false,
-    'error'=>'⚠ Este archivo ya fue importado anteriormente. 
-    Si desea volver a cargarlo, primero anule la importación desde el historial.'
-  ]);
+  echo json_encode(['ok'=>false,'error'=>'⚠ Este archivo ya fue importado anteriormente.']);
   exit;
 }
 
 /* ==========================================================
-   5. Detección del delimitador
+   5. Leer archivo y detectar delimitador
    ========================================================== */
 $fh = fopen($tmp,'r');
-if(!$fh){
-  echo json_encode(['ok'=>false,'error'=>'No se pudo abrir el archivo']);
-  exit;
-}
+if(!$fh){ echo json_encode(['ok'=>false,'error'=>'No se pudo abrir el archivo']); exit; }
+
 $firstLine = fgets($fh);
 rewind($fh);
 $delims = [','=>substr_count($firstLine,','), ';'=>substr_count($firstLine,';'), "\t"=>substr_count($firstLine,"\t")];
-$delimiter = array_search(max($delims), $delims) ?: ';';
+$delimiter = array_search(max($delims), $delims);
+if (!$delimiter) $delimiter = ';';
 
+/* Encabezados y mapeo dinámico */
 $header = fgetcsv($fh, 0, $delimiter);
 $header = array_map(fn($h)=>strtoupper(trim($h)), $header);
 
 $expected = [
-  'CEDULA','INSTITUCION','ANO','NUMERO_PROCEDIMIENTO','DESCR_PROCEDIMIENTO','LINEA','NRO_SICOP','TIPO_PROCEDIMIENTO',
-  'MODALIDAD_PROCEDIMIENTO','FECHA_REV','CEDULA_PROVEEDOR','NOMBRE_PROVEEDOR','PERFIL_PROV','CEDULA_REPRESENTANTE',
-  'REPRESENTANTE','OBJETO_GASTO','MONEDA_ADJUDICADA','MONTO_ADJU_LINEA','MONTO_ADJU_LINEA_CRC','MONTO_ADJU_LINEA_USD',
-  'FECHA_ADJUD_FIRME','FECHA_SOL_CONTRA','PROD_ID','DESCR_BIEN_SERVICIO','CANTIDAD','UNIDAD_MEDIDA','MONTO_UNITARIO',
-  'MONEDA_PRECIO_EST','FECHA_SOL_CONTRA_CL','PROD_ID_CL'
+  'CEDULA','INSTITUCION','ANO','NUMERO_PROCEDIMIENTO','DESCR_PROCEDIMIENTO','LINEA',
+  'NRO_SICOP','TIPO_PROCEDIMIENTO','MODALIDAD_PROCEDIMIENTO','FECHA_REV',
+  'CEDULA_PROVEEDOR','NOMBRE_PROVEEDOR','PERFIL_PROV','CEDULA_REPRESENTANTE',
+  'REPRESENTANTE','OBJETO_GASTO','MONEDA_ADJUDICADA','MONTO_ADJU_LINEA',
+  'MONTO_ADJU_LINEA_CRC','MONTO_ADJU_LINEA_USD','FECHA_ADJUD_FIRME',
+  'FECHA_SOL_CONTRA','PROD_ID','DESCR_BIEN_SERVICIO','CANTIDAD','UNIDAD_MEDIDA',
+  'MONTO_UNITARIO','MONEDA_PRECIO_EST','FECHA_SOL_CONTRA_CL','PROD_ID_CL'
 ];
-$diff = array_diff($expected, $header);
-if(count($diff)>0){
-  echo json_encode(['ok'=>false,'error'=>'Encabezados no coinciden','faltan'=>$diff]);
+
+/* Crear mapa dinámico */
+$map = [];
+foreach ($expected as $col) {
+  $idx = array_search($col, $header);
+  if ($idx !== false) $map[$col] = $idx;
+}
+$missing = array_diff($expected, array_keys($map));
+if (count($missing) > 0) {
+  echo json_encode(['ok'=>false,'error'=>'Encabezados no coinciden','faltan'=>$missing]);
   exit;
 }
 
 /* ==========================================================
-   6. Crear registro en log y preparar inserción
+   6. Insertar con mapeo
    ========================================================== */
-$import_id = 'imp_'.uniqid();
-try {
-  $pdo->prepare("
-    INSERT INTO public.procedimientos_import_log
-      (import_id, filename, mes_descarga, anio_descarga, total_rows, inserted, skipped, started_at, source_ip, file_hash)
-    VALUES
-      (:id, :f, :m, :a, 0, 0, 0, NOW(), :ip, :h)
-  ")->execute([
-    ':id'=>$import_id,
-    ':f'=>$name,
-    ':m'=>$_POST['mes_descarga'] ?? null,
-    ':a'=>$_POST['anio_descarga'] ?? null,
-    ':ip'=>$_SERVER['REMOTE_ADDR'] ?? null,
-    ':h'=>$hash
-  ]);
-} catch(Throwable $e) {
-  echo json_encode(['ok'=>false,'error'=>'Error registrando importación: '.$e->getMessage()]);
-  exit;
-}
-
-/* ==========================================================
-   7. Inserción de datos en bloque
-   ========================================================== */
-$sqlCols = implode(',', array_map(fn($c)=>strtolower($c), $expected)) . ', mes_descarga, anio_descarga, import_id';
+$sqlCols = '"' . implode('","', $expected) . '", "mes_descarga", "anio_descarga", "import_id"';
 $sqlVals = implode(',', array_map(fn($c)=>':'.strtolower($c), $expected)) . ', :mes, :anio, :import_id';
 $stmt = $pdo->prepare("INSERT INTO public.\"Procedimientos Adjudicados\" ($sqlCols) VALUES ($sqlVals)");
 
-$insertados=0; $saltados=0; $errores=[];
+$insertados = 0; $saltados = 0; $errores = [];
+$import_id = 'imp_' . uniqid();
 $pdo->beginTransaction();
-while(($r=fgetcsv($fh,0,$delimiter))!==false){
-  if(count(array_filter($r,fn($x)=>trim((string)$x)!=''))==0) continue;
-  $params=[];
-  foreach($expected as $i=>$col){
-    $val = $r[$i] ?? null;
-    switch($col){
+
+while (($r = fgetcsv($fh, 0, $delimiter)) !== false) {
+  if (count(array_filter($r, fn($x)=>trim((string)$x)!=''))==0) continue;
+
+  $params = [];
+  foreach ($expected as $col) {
+    $val = $r[$map[$col]] ?? null;
+    switch ($col) {
       case 'FECHA_REV':
       case 'FECHA_ADJUD_FIRME':
       case 'FECHA_SOL_CONTRA':
@@ -206,27 +188,33 @@ while(($r=fgetcsv($fh,0,$delimiter))!==false){
   $params[':import_id'] = $import_id;
 
   try { $stmt->execute($params); $insertados++; }
-  catch(Throwable $e){ $saltados++; if($saltados<10)$errores[]=$e->getMessage(); }
+  catch(Throwable $e) { $saltados++; if($saltados<10) $errores[]=$e->getMessage(); }
 }
 $pdo->commit();
 fclose($fh);
 
 /* ==========================================================
-   8. Actualizar totales en el log
+   7. Registrar importación en log
    ========================================================== */
-$pdo->prepare("
-  UPDATE public.procedimientos_import_log
-  SET total_rows = :t, inserted = :i, skipped = :s, finished_at = NOW()
-  WHERE import_id = :id
-")->execute([
-  ':id'=>$import_id,
-  ':t'=>$insertados+$saltados,
-  ':i'=>$insertados,
-  ':s'=>$saltados
-]);
+try {
+  $pdo->prepare("
+    INSERT INTO public.procedimientos_import_log
+      (import_id, filename, mes_descarga, anio_descarga, total_rows, inserted, skipped, started_at, finished_at, source_ip, file_hash)
+    VALUES (:id, :f, :m, :a, :t, :i, :s, NOW(), NOW(), :ip, :h)
+  ")->execute([
+    ':id'=>$import_id, ':f'=>$name,
+    ':m'=>$_POST['mes_descarga'] ?? null,
+    ':a'=>$_POST['anio_descarga'] ?? null,
+    ':t'=>$insertados+$saltados, ':i'=>$insertados, ':s'=>$saltados,
+    ':ip'=>$_SERVER['REMOTE_ADDR'] ?? null,
+    ':h'=>$hash
+  ]);
+} catch(Throwable $e) {
+  $errores[] = 'Error registrando importación: '.$e->getMessage();
+}
 
 /* ==========================================================
-   9. Respuesta JSON
+   8. Respuesta JSON
    ========================================================== */
 echo json_encode([
   'ok'=>true,
