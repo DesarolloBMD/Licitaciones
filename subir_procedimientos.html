@@ -110,7 +110,10 @@
           <button id="btnLimpiar" type="button" class="btn btn-outline-secondary">
             <i class="bi bi-trash me-1"></i> Limpiar
           </button>
-          <span id="cronometro" class="ms-auto small text-muted"></span>
+          <button type="button" id="btnInicio" class="btn btn-outline-success ms-auto">
+            <i class="bi bi-house-door me-1"></i> Ir al inicio
+          </button>
+          <span id="cronometro" class="ms-3 small text-muted"></span>
         </div>
 
         <div id="barWrap" class="progress mt-3" style="display:none;">
@@ -147,8 +150,11 @@ const tbl = document.querySelector('#tblHistorial tbody');
 const btnSubir = document.getElementById('btnSubir');
 const btnCancelar = document.getElementById('btnCancelar');
 const btnLimpiar = document.getElementById('btnLimpiar');
+const btnInicio = document.getElementById('btnInicio');
 const cronometro = document.getElementById('cronometro');
 let controller = null, timer = null, segundos = 0;
+
+btnInicio.addEventListener('click',()=>window.location.href='index.html');
 
 frm.addEventListener('submit', async e => {
   e.preventDefault();
@@ -172,7 +178,6 @@ frm.addEventListener('submit', async e => {
 
     if (!data.ok) throw new Error(data.error || 'Error desconocido en la importación');
 
-    // Barra de progreso
     bar.style.width = '100%';
     bar.textContent = '100%';
 
