@@ -152,7 +152,7 @@ const btnCancelar = document.getElementById('btnCancelar');
 const btnLimpiar = document.getElementById('btnLimpiar');
 const btnInicio = document.getElementById('btnInicio');
 const cronometro = document.getElementById('cronometro');
-let controller = null, timer = null, segundos = 0;
+let controller = null, timer = null, segundos = 0, animacion = null;
 
 btnInicio.addEventListener('click',()=>window.location.href='index.html');
 
@@ -163,12 +163,22 @@ frm.addEventListener('submit', async e => {
   btnSubir.disabled = true;
   btnCancelar.disabled = false;
   barWrap.style.display = 'block';
-  bar.style.width = '5%';
+  bar.style.width = '0%';
   bar.textContent = '0%';
   log.textContent = '⏳ Subiendo...';
   segundos = 0;
   cronometro.textContent = "0s";
   timer = setInterval(()=>{ segundos++; cronometro.textContent = segundos+'s'; },1000);
+
+  // 🎞 Simulación de progreso
+  let progreso = 0;
+  animacion = setInterval(()=>{
+    if(progreso < 95){
+      progreso += Math.random() * 3;
+      bar.style.width = progreso.toFixed(1)+'%';
+      bar.textContent = Math.floor(progreso)+'%';
+    }
+  },400);
 
   try {
     const res = await fetch(ENDPOINT, { method:'POST', body:fd, signal:controller.signal });
@@ -178,6 +188,7 @@ frm.addEventListener('submit', async e => {
 
     if (!data.ok) throw new Error(data.error || 'Error desconocido en la importación');
 
+    clearInterval(animacion);
     bar.style.width = '100%';
     bar.textContent = '100%';
 
@@ -187,6 +198,7 @@ frm.addEventListener('submit', async e => {
   } catch(err){
     log.textContent = err.name==='AbortError' ? '⛔ Importación cancelada.' : '⚠ '+err.message;
   } finally {
+    clearInterval(animacion);
     btnSubir.disabled = false;
     btnCancelar.disabled = true;
     clearInterval(timer);
