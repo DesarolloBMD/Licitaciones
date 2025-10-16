@@ -57,7 +57,7 @@ function clean_string(?string $s): ?string {
 }
 
 /* ==========================================================
-   2.1. Consultar historial
+   2.1. Consultar historial (GET)
    ========================================================== */
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'historial') {
   try {
@@ -99,7 +99,7 @@ if (!in_array($ext, ['csv','txt'])) {
 }
 
 /* ==========================================================
-   4. Validar duplicado
+   4. Evitar duplicados
    ========================================================== */
 $hash = md5_file($tmp);
 $check = $pdo->prepare("
@@ -150,19 +150,38 @@ if (count($missing) > 0) {
 }
 
 /* ==========================================================
-   6. Preparar inserción con minúsculas
+   6. Registrar importación primero (FK padre)
+   ========================================================== */
+$insertados = 0; $saltados = 0; $errores = [];
+$import_id = 'imp_' . uniqid();
+
+try {
+  $pdo->prepare("
+    INSERT INTO public.procedimientos_import_log
+      (import_id, filename, mes_descarga, anio_descarga, total_rows, inserted, skipped, started_at, source_ip, file_hash)
+    VALUES (:id, :f, :m, :a, 0, 0, 0, NOW(), :ip, :h)
+  ")->execute([
+    ':id'=>$import_id,
+    ':f'=>$name,
+    ':m'=>$_POST['mes_descarga'] ?? null,
+    ':a'=>$_POST['anio_descarga'] ?? null,
+    ':ip'=>$_SERVER['REMOTE_ADDR'] ?? null,
+    ':h'=>$hash
+  ]);
+} catch (Throwable $e) {
+  echo json_encode(['ok'=>false,'error'=>'Error creando registro en import_log: '.$e->getMessage()]);
+  exit;
+}
+
+/* ==========================================================
+   7. Insertar procedimientos adjudicados
    ========================================================== */
 $sqlCols = implode(',', array_map(fn($c)=>strtolower($c), $expected)) . ', mes_descarga, anio_descarga, import_id';
 $sqlVals = implode(',', array_map(fn($c)=>':'.strtolower($c), $expected)) . ', :mes, :anio, :import_id';
 $stmt = $pdo->prepare("INSERT INTO public.\"Procedimientos Adjudicados\" ($sqlCols) VALUES ($sqlVals)");
 
-$insertados = 0; $saltados = 0; $errores = [];
-$import_id = 'imp_' . uniqid();
 $pdo->beginTransaction();
 
-/* ==========================================================
-   7. Inserción fila a fila
-   ========================================================== */
 while (($r = fgetcsv($fh, 0, $delimiter)) !== false) {
   if (count(array_filter($r, fn($x)=>trim((string)$x)!=''))==0) continue;
   $params = [];
@@ -187,38 +206,39 @@ while (($r = fgetcsv($fh, 0, $delimiter)) !== false) {
   $params[':mes'] = $_POST['mes_descarga'] ?? null;
   $params[':anio'] = $_POST['anio_descarga'] ?? null;
   $params[':import_id'] = $import_id;
-  try { $stmt->execute($params); $insertados++; }
-  catch(Throwable $e){ $saltados++; if($saltados<10)$errores[]=$e->getMessage(); }
+
+  try { 
+    $stmt->execute($params); 
+    $insertados++; 
+  }
+  catch(Throwable $e){ 
+    $saltados++; 
+    if($saltados<10)$errores[]=$e->getMessage(); 
+  }
 }
 $pdo->commit();
 fclose($fh);
 
 /* ==========================================================
-   8. Registrar importación
+   8. Actualizar import_log con resultados reales
    ========================================================== */
-try{
+try {
   $pdo->prepare("
-    INSERT INTO public.procedimientos_import_log
-      (import_id, filename, mes_descarga, anio_descarga, total_rows, inserted, skipped, started_at, finished_at, source_ip, file_hash)
-    VALUES
-      (:id, :f, :m, :a, :t, :i, :s, NOW(), NOW(), :ip, :h)
+    UPDATE public.procedimientos_import_log
+    SET inserted = :i, skipped = :s, total_rows = :t, finished_at = NOW()
+    WHERE import_id = :id
   ")->execute([
-    ':id'=>$import_id,
-    ':f'=>$name,
-    ':m'=>$_POST['mes_descarga'] ?? null,
-    ':a'=>$_POST['anio_descarga'] ?? null,
-    ':t'=>$insertados+$saltados,
     ':i'=>$insertados,
     ':s'=>$saltados,
-    ':ip'=>$_SERVER['REMOTE_ADDR'] ?? null,
-    ':h'=>$hash
+    ':t'=>$insertados+$saltados,
+    ':id'=>$import_id
   ]);
-}catch(Throwable $e){
-  $errores[]='Error registrando importación: '.$e->getMessage();
+} catch(Throwable $e){
+  $errores[] = 'Error actualizando import_log: '.$e->getMessage();
 }
 
 /* ==========================================================
-   9. Respuesta JSON
+   9. Respuesta final JSON
    ========================================================== */
 echo json_encode([
   'ok'=>true,
@@ -226,4 +246,4 @@ echo json_encode([
   'saltados'=>$saltados,
   'total'=>$insertados+$saltados,
   'errores'=>$errores
-],JSON_UNESCAPED_UNICODE);
+], JSON_UNESCAPED_UNICODE);
