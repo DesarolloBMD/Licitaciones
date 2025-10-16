@@ -99,7 +99,7 @@ if (!in_array($ext, ['csv','txt'])) {
 }
 
 /* ==========================================================
-   4. Evitar duplicados
+   4. Validar duplicado
    ========================================================== */
 $hash = md5_file($tmp);
 $check = $pdo->prepare("
@@ -113,7 +113,7 @@ if ($check->fetchColumn() > 0) {
 }
 
 /* ==========================================================
-   5. Leer archivo y detectar delimitador
+   5. Leer encabezados y crear mapeo dinámico
    ========================================================== */
 $fh = fopen($tmp,'r');
 if(!$fh){ echo json_encode(['ok'=>false,'error'=>'No se pudo abrir el archivo']); exit; }
@@ -124,7 +124,6 @@ $delims = [','=>substr_count($firstLine,','), ';'=>substr_count($firstLine,';'),
 $delimiter = array_search(max($delims), $delims);
 if (!$delimiter) $delimiter = ';';
 
-/* Encabezados y mapeo dinámico */
 $header = fgetcsv($fh, 0, $delimiter);
 $header = array_map(fn($h)=>strtoupper(trim($h)), $header);
 
@@ -138,7 +137,7 @@ $expected = [
   'MONTO_UNITARIO','MONEDA_PRECIO_EST','FECHA_SOL_CONTRA_CL','PROD_ID_CL'
 ];
 
-/* Crear mapa dinámico */
+/* Crear mapa: posición del encabezado */
 $map = [];
 foreach ($expected as $col) {
   $idx = array_search($col, $header);
@@ -151,9 +150,9 @@ if (count($missing) > 0) {
 }
 
 /* ==========================================================
-   6. Insertar con mapeo
+   6. Preparar inserción con minúsculas
    ========================================================== */
-$sqlCols = '"' . implode('","', $expected) . '", "mes_descarga", "anio_descarga", "import_id"';
+$sqlCols = implode(',', array_map(fn($c)=>strtolower($c), $expected)) . ', mes_descarga, anio_descarga, import_id';
 $sqlVals = implode(',', array_map(fn($c)=>':'.strtolower($c), $expected)) . ', :mes, :anio, :import_id';
 $stmt = $pdo->prepare("INSERT INTO public.\"Procedimientos Adjudicados\" ($sqlCols) VALUES ($sqlVals)");
 
@@ -161,9 +160,11 @@ $insertados = 0; $saltados = 0; $errores = [];
 $import_id = 'imp_' . uniqid();
 $pdo->beginTransaction();
 
+/* ==========================================================
+   7. Inserción fila a fila
+   ========================================================== */
 while (($r = fgetcsv($fh, 0, $delimiter)) !== false) {
   if (count(array_filter($r, fn($x)=>trim((string)$x)!=''))==0) continue;
-
   $params = [];
   foreach ($expected as $col) {
     $val = $r[$map[$col]] ?? null;
@@ -186,35 +187,38 @@ while (($r = fgetcsv($fh, 0, $delimiter)) !== false) {
   $params[':mes'] = $_POST['mes_descarga'] ?? null;
   $params[':anio'] = $_POST['anio_descarga'] ?? null;
   $params[':import_id'] = $import_id;
-
   try { $stmt->execute($params); $insertados++; }
-  catch(Throwable $e) { $saltados++; if($saltados<10) $errores[]=$e->getMessage(); }
+  catch(Throwable $e){ $saltados++; if($saltados<10)$errores[]=$e->getMessage(); }
 }
 $pdo->commit();
 fclose($fh);
 
 /* ==========================================================
-   7. Registrar importación en log
+   8. Registrar importación
    ========================================================== */
-try {
+try{
   $pdo->prepare("
     INSERT INTO public.procedimientos_import_log
       (import_id, filename, mes_descarga, anio_descarga, total_rows, inserted, skipped, started_at, finished_at, source_ip, file_hash)
-    VALUES (:id, :f, :m, :a, :t, :i, :s, NOW(), NOW(), :ip, :h)
+    VALUES
+      (:id, :f, :m, :a, :t, :i, :s, NOW(), NOW(), :ip, :h)
   ")->execute([
-    ':id'=>$import_id, ':f'=>$name,
+    ':id'=>$import_id,
+    ':f'=>$name,
     ':m'=>$_POST['mes_descarga'] ?? null,
     ':a'=>$_POST['anio_descarga'] ?? null,
-    ':t'=>$insertados+$saltados, ':i'=>$insertados, ':s'=>$saltados,
+    ':t'=>$insertados+$saltados,
+    ':i'=>$insertados,
+    ':s'=>$saltados,
     ':ip'=>$_SERVER['REMOTE_ADDR'] ?? null,
     ':h'=>$hash
   ]);
-} catch(Throwable $e) {
-  $errores[] = 'Error registrando importación: '.$e->getMessage();
+}catch(Throwable $e){
+  $errores[]='Error registrando importación: '.$e->getMessage();
 }
 
 /* ==========================================================
-   8. Respuesta JSON
+   9. Respuesta JSON
    ========================================================== */
 echo json_encode([
   'ok'=>true,
@@ -222,4 +226,4 @@ echo json_encode([
   'saltados'=>$saltados,
   'total'=>$insertados+$saltados,
   'errores'=>$errores
-], JSON_UNESCAPED_UNICODE);
+],JSON_UNESCAPED_UNICODE);
