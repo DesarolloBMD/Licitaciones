@@ -1,36 +1,66 @@
-:root{
-  --acento:#0B4912;
-  --acento-2:#126a1a;
-  --bg-hero: radial-gradient(1200px 600px at 10% -10%, #d9f99d55, transparent 40%),
-             radial-gradient(1000px 600px at 90% -20%, #34d39933, transparent 45%),
-             linear-gradient(180deg,#0b0f24 0%, #0b0f24 40%, #0e132c 100%);
+:root {
+  --acento: #0B4912;
+  --acento-2: #126a1a;
 }
-body{ background:#0b0f24; color:#0e1b2a; font-family:'Inter',sans-serif; }
-.hero{ background:var(--bg-hero); color:#eaf2ff; padding:60px 0 90px; text-align:center; }
-.hero h1{ letter-spacing:.3px; font-weight:600; }
-.glass{
-  background:rgba(255,255,255,.95);
-  backdrop-filter:blur(10px);
-  border:1px solid rgba(255,255,255,.6);
-  box-shadow:0 15px 35px rgba(0,0,0,.15);
-  border-radius:20px;
+
+body {
+  background: #f5f7fa;
+  font-family: "Inter", system-ui, sans-serif;
 }
-.btn-acento{
-  background:linear-gradient(90deg,var(--acento),var(--acento-2));
-  color:#fff; border:none;
+
+.hero {
+  background: radial-gradient(1000px 600px at 20% -20%, #b4f0b933, transparent 50%), linear-gradient(180deg, #0b4912 0%, #146a1a 100%);
 }
-.btn-acento:hover{ filter:brightness(1.08); color:#fff; }
-.progress{
-  height:12px; border-radius:10px; overflow:hidden; background:#e8f5e9;
+
+.hero h1 {
+  font-weight: 600;
 }
-.progress-bar{
-  background:linear-gradient(90deg,var(--acento),var(--acento-2));
-  font-size:0.75rem; color:#fff; font-weight:600; text-align:center;
-  transition:width 0.4s ease;
+
+.glass {
+  background: rgba(255,255,255,0.9);
+  border-radius: 18px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+  backdrop-filter: blur(8px);
 }
-pre{
-  white-space:pre-wrap; font-family:ui-monospace, monospace;
-  background:#f8fafc; border:1px solid #e3e9ef; border-radius:10px;
+
+.btn-acento {
+  background: var(--acento);
+  color: #fff;
+  border: none;
 }
-.table-hover tbody tr:hover{ background:#f6fff6; }
-.badge-soft{ background:#e8ffe8; color:#0b4912; border:1px solid #bde5bd; }
+.btn-acento:hover { filter: brightness(1.1); color:#fff; }
+
+.table-responsive {
+  border-radius: 10px;
+  background: #fff;
+  overflow-x: auto;
+  box-shadow: 0 0 8px rgba(0,0,0,0.05);
+}
+
+.table thead th {
+  white-space: nowrap;
+  text-align: center;
+  font-weight: 600;
+}
+
+.table td, .table th {
+  vertical-align: middle;
+  font-size: 0.9rem;
+}
+
+.progress-bar {
+  transition: width 0.3s ease;
+  font-size: 0.75rem;
+  color: #fff;
+  text-align: center;
+}
+
+pre {
+  background: #f9fafb;
+  border: 1px solid #e1e8ef;
+}
+
+code {
+  color: #e91e63;
+  font-weight: 600;
+}
