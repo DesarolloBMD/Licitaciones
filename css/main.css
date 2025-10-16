@@ -4,7 +4,7 @@
   --acento: #0B4912;      /* verde (botones, acentos) */
   --texto-claro: #E8EDF7;
   --borde: rgba(255,255,255,.08);
-  --bg-app: #f6f7fb;      /* fondo general del app */
+  --bg-app: #0B0F24;      /* fondo general del app */
 }
 
 html, body { height: 100%; }
