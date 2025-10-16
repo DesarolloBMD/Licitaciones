@@ -46,14 +46,12 @@ function norm_date(?string $s): ?string {
   }
   return null;
 }
-
 function norm_num(?string $s): ?float {
   $s = trim((string)$s);
   if ($s==='' || strtoupper($s)==='NULL') return null;
   $s = str_replace(['₡','$','CRC','USD',',',' '], '', $s);
   return is_numeric($s) ? (float)$s : null;
 }
-
 function clean_string(?string $s): ?string {
   $s = trim((string)$s);
   return $s === '' ? null : $s;
@@ -112,7 +110,6 @@ $check = $pdo->prepare("
     AND anulado_at IS NULL
 ");
 $check->execute([':f'=>$name, ':h'=>$hash]);
-
 if ($check->fetchColumn() > 0) {
   echo json_encode([
     'ok'=>false,
@@ -133,7 +130,6 @@ if(!$fh){
 
 $firstLine = fgets($fh);
 rewind($fh);
-
 $delims = [','=>substr_count($firstLine,','), ';'=>substr_count($firstLine,';'), "\t"=>substr_count($firstLine,"\t")];
 $delimiter = array_search(max($delims), $delims);
 if (!$delimiter) $delimiter = ';';
@@ -148,7 +144,6 @@ $expected = [
   'FECHA_ADJUD_FIRME','FECHA_SOL_CONTRA','PROD_ID','DESCR_BIEN_SERVICIO','CANTIDAD','UNIDAD_MEDIDA','MONTO_UNITARIO',
   'MONEDA_PRECIO_EST','FECHA_SOL_CONTRA_CL','PROD_ID_CL'
 ];
-
 $diff = array_diff($expected, $header);
 if(count($diff)>0){
   echo json_encode(['ok'=>false,'error'=>'Encabezados no coinciden con el formato esperado','faltan'=>$diff]);
@@ -156,41 +151,19 @@ if(count($diff)>0){
 }
 
 /* ==========================================================
-   6. Registrar primero la importación en el log
+   6. Preparar inserción (en minúsculas)
    ========================================================== */
-$insertados=0; $saltados=0; $errores=[];
-$import_id = 'imp_'.uniqid();
-
-try {
-  $pdo->beginTransaction();
-  $pdo->prepare("
-    INSERT INTO public.procedimientos_import_log
-      (import_id, filename, mes_descarga, anio_descarga, total_rows, inserted, skipped,
-       started_at, finished_at, source_ip, file_hash)
-    VALUES
-      (:id, :f, :m, :a, 0, 0, 0, NOW(), NULL, :ip, :h)
-  ")->execute([
-    ':id'=>$import_id,
-    ':f'=>$name,
-    ':m'=>$_POST['mes_descarga'] ?? null,
-    ':a'=>$_POST['anio_descarga'] ?? null,
-    ':ip'=>$_SERVER['REMOTE_ADDR'] ?? null,
-    ':h'=>$hash
-  ]);
-  $pdo->commit();
-} catch(Throwable $e) {
-  echo json_encode(['ok'=>false,'error'=>'Error registrando inicio de importación: '.$e->getMessage()]);
-  exit;
-}
-
-/* ==========================================================
-   7. Inserción de Procedimientos Adjudicados
-   ========================================================== */
-$sqlCols = '"' . implode('","', $expected) . '", "mes_descarga", "anio_descarga", "import_id"';
+$sqlCols = implode(',', array_map(fn($c)=>strtolower($c), $expected)) . ', mes_descarga, anio_descarga, import_id';
 $sqlVals = implode(',', array_map(fn($c)=>':'.strtolower($c), $expected)) . ', :mes, :anio, :import_id';
 $stmt = $pdo->prepare("INSERT INTO public.\"Procedimientos Adjudicados\" ($sqlCols) VALUES ($sqlVals)");
 
+$insertados=0; $saltados=0; $errores=[];
+$import_id = 'imp_'.uniqid();
 $pdo->beginTransaction();
+
+/* ==========================================================
+   7. Leer e insertar filas
+   ========================================================== */
 while(($r=fgetcsv($fh,0,$delimiter))!==false){
   if(count(array_filter($r,fn($x)=>trim((string)$x)!=''))==0) continue;
   $params=[];
@@ -215,33 +188,40 @@ while(($r=fgetcsv($fh,0,$delimiter))!==false){
   $params[':mes'] = $_POST['mes_descarga'] ?? null;
   $params[':anio'] = $_POST['anio_descarga'] ?? null;
   $params[':import_id'] = $import_id;
+
   try {
     $stmt->execute($params);
     $insertados++;
   } catch(Throwable $e) {
     $saltados++;
-    if($saltados < 10) $errores[] = $e->getMessage();
+    if($saltados<10) $errores[]=$e->getMessage();
   }
 }
-fclose($fh);
 $pdo->commit();
+fclose($fh);
 
 /* ==========================================================
-   8. Actualizar log con totales
+   8. Registrar importación
    ========================================================== */
 try {
   $pdo->prepare("
-    UPDATE public.procedimientos_import_log
-    SET total_rows = :t, inserted = :i, skipped = :s, finished_at = NOW()
-    WHERE import_id = :id
+    INSERT INTO public.procedimientos_import_log
+      (import_id, filename, mes_descarga, anio_descarga, total_rows, inserted, skipped, started_at, finished_at, source_ip, file_hash)
+    VALUES
+      (:id, :f, :m, :a, :t, :i, :s, NOW(), NOW(), :ip, :h)
   ")->execute([
+    ':id'=>$import_id,
+    ':f'=>$name,
+    ':m'=>$_POST['mes_descarga'] ?? null,
+    ':a'=>$_POST['anio_descarga'] ?? null,
     ':t'=>$insertados+$saltados,
     ':i'=>$insertados,
     ':s'=>$saltados,
-    ':id'=>$import_id
+    ':ip'=>$_SERVER['REMOTE_ADDR'] ?? null,
+    ':h'=>$hash
   ]);
-} catch(Throwable $e){
-  $errores[] = 'Error actualizando totales: '.$e->getMessage();
+} catch(Throwable $e) {
+  $errores[]='Error registrando importación: '.$e->getMessage();
 }
 
 /* ==========================================================
