@@ -1,10 +1,12 @@
 <?php
 // subir_procedimientos.php
 declare(strict_types=1);
-@ini_set('memory_limit','1G');
-@set_time_limit(0);
-@ini_set('upload_max_filesize','512M');
-@ini_set('post_max_size','512M');
+
+// Extender límites de ejecución y memoria
+ini_set('memory_limit','2G');
+ini_set('max_execution_time','600');
+ini_set('upload_max_filesize','1024M');
+ini_set('post_max_size','1024M');
 
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
@@ -58,7 +60,7 @@ function clean_string(?string $s): ?string {
 }
 
 /* ==========================================================
-   2.1. Consultar historial (GET)
+   2.1. Historial (GET)
    ========================================================== */
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'historial') {
   try {
@@ -69,10 +71,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'histori
       ORDER BY finished_at DESC
       LIMIT 50
     ");
-    $rows = $stmt->fetchAll();
-    echo json_encode(['ok'=>true, 'rows'=>$rows], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['ok'=>true, 'rows'=>$stmt->fetchAll()], JSON_UNESCAPED_UNICODE);
   } catch(Throwable $e) {
-    echo json_encode(['ok'=>false, 'error'=>'Error al cargar historial: '.$e->getMessage()]);
+    echo json_encode(['ok'=>false,'error'=>$e->getMessage()]);
   }
   exit;
 }
@@ -85,7 +86,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   echo json_encode(['ok'=>false,'error'=>'Método no permitido']);
   exit;
 }
-
 if (!isset($_FILES['archivo']) || $_FILES['archivo']['error'] !== UPLOAD_ERR_OK) {
   echo json_encode(['ok'=>false,'error'=>'Archivo no recibido']);
   exit;
@@ -120,19 +120,17 @@ if ($check->fetchColumn() > 0) {
 }
 
 /* ==========================================================
-   5. Lectura del archivo y detección del delimitador
+   5. Detección del delimitador
    ========================================================== */
 $fh = fopen($tmp,'r');
 if(!$fh){
   echo json_encode(['ok'=>false,'error'=>'No se pudo abrir el archivo']);
   exit;
 }
-
 $firstLine = fgets($fh);
 rewind($fh);
 $delims = [','=>substr_count($firstLine,','), ';'=>substr_count($firstLine,';'), "\t"=>substr_count($firstLine,"\t")];
-$delimiter = array_search(max($delims), $delims);
-if (!$delimiter) $delimiter = ';';
+$delimiter = array_search(max($delims), $delims) ?: ';';
 
 $header = fgetcsv($fh, 0, $delimiter);
 $header = array_map(fn($h)=>strtoupper(trim($h)), $header);
@@ -146,21 +144,14 @@ $expected = [
 ];
 $diff = array_diff($expected, $header);
 if(count($diff)>0){
-  echo json_encode(['ok'=>false,'error'=>'Encabezados no coinciden con el formato esperado','faltan'=>$diff]);
+  echo json_encode(['ok'=>false,'error'=>'Encabezados no coinciden','faltan'=>$diff]);
   exit;
 }
 
 /* ==========================================================
-   6. Preparar inserción y crear registro en LOG (para FK)
+   6. Crear registro en log y preparar inserción
    ========================================================== */
-$sqlCols = implode(',', array_map(fn($c)=>strtolower($c), $expected)) . ', mes_descarga, anio_descarga, import_id';
-$sqlVals = implode(',', array_map(fn($c)=>':'.strtolower($c), $expected)) . ', :mes, :anio, :import_id';
-$stmt = $pdo->prepare("INSERT INTO public.\"Procedimientos Adjudicados\" ($sqlCols) VALUES ($sqlVals)");
-
-$insertados=0; $saltados=0; $errores=[];
 $import_id = 'imp_'.uniqid();
-
-/* --- Registrar primero la importación (para cumplir FK) --- */
 try {
   $pdo->prepare("
     INSERT INTO public.procedimientos_import_log
@@ -176,13 +167,18 @@ try {
     ':h'=>$hash
   ]);
 } catch(Throwable $e) {
-  echo json_encode(['ok'=>false,'error'=>'Error creando registro en log: '.$e->getMessage()]);
+  echo json_encode(['ok'=>false,'error'=>'Error registrando importación: '.$e->getMessage()]);
   exit;
 }
 
 /* ==========================================================
-   7. Leer e insertar filas
+   7. Inserción de datos en bloque
    ========================================================== */
+$sqlCols = implode(',', array_map(fn($c)=>strtolower($c), $expected)) . ', mes_descarga, anio_descarga, import_id';
+$sqlVals = implode(',', array_map(fn($c)=>':'.strtolower($c), $expected)) . ', :mes, :anio, :import_id';
+$stmt = $pdo->prepare("INSERT INTO public.\"Procedimientos Adjudicados\" ($sqlCols) VALUES ($sqlVals)");
+
+$insertados=0; $saltados=0; $errores=[];
 $pdo->beginTransaction();
 while(($r=fgetcsv($fh,0,$delimiter))!==false){
   if(count(array_filter($r,fn($x)=>trim((string)$x)!=''))==0) continue;
@@ -209,34 +205,25 @@ while(($r=fgetcsv($fh,0,$delimiter))!==false){
   $params[':anio'] = $_POST['anio_descarga'] ?? null;
   $params[':import_id'] = $import_id;
 
-  try {
-    $stmt->execute($params);
-    $insertados++;
-  } catch(Throwable $e) {
-    $saltados++;
-    if($saltados<10) $errores[]=$e->getMessage();
-  }
+  try { $stmt->execute($params); $insertados++; }
+  catch(Throwable $e){ $saltados++; if($saltados<10)$errores[]=$e->getMessage(); }
 }
 $pdo->commit();
 fclose($fh);
 
 /* ==========================================================
-   8. Actualizar importación con totales y finalización
+   8. Actualizar totales en el log
    ========================================================== */
-try {
-  $pdo->prepare("
-    UPDATE public.procedimientos_import_log
-    SET total_rows = :t, inserted = :i, skipped = :s, finished_at = NOW()
-    WHERE import_id = :id
-  ")->execute([
-    ':id'=>$import_id,
-    ':t'=>$insertados+$saltados,
-    ':i'=>$insertados,
-    ':s'=>$saltados
-  ]);
-} catch(Throwable $e) {
-  $errores[]='Error actualizando importación: '.$e->getMessage();
-}
+$pdo->prepare("
+  UPDATE public.procedimientos_import_log
+  SET total_rows = :t, inserted = :i, skipped = :s, finished_at = NOW()
+  WHERE import_id = :id
+")->execute([
+  ':id'=>$import_id,
+  ':t'=>$insertados+$saltados,
+  ':i'=>$insertados,
+  ':s'=>$saltados
+]);
 
 /* ==========================================================
    9. Respuesta JSON
