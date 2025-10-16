@@ -158,8 +158,8 @@ if(count($diff)>0){
 /* ==========================================================
    6. Preparar inserción
    ========================================================== */
-$sqlCols = '"'.implode('","',$expected).'", "mes_descarga", "anio_descarga", "import_id"';
-$sqlVals = implode(',', array_map(fn($c)=>':'.strtolower($c), $expected)).', :mes, :anio, :import_id';
+$sqlCols = implode(',', array_map(fn($c)=>strtolower($c), $expected)) . ', mes_descarga, anio_descarga, import_id';
+$sqlVals = implode(',', array_map(fn($c)=>':'.strtolower($c), $expected)) . ', :mes, :anio, :import_id';
 $stmt = $pdo->prepare("INSERT INTO public.\"Procedimientos Adjudicados\" ($sqlCols) VALUES ($sqlVals)");
 
 $insertados=0; $saltados=0; $errores=[];
