@@ -25,25 +25,22 @@
           <i class="bi bi-house-door"></i><span>Inicio</span>
         </a>
         <a class="nav-link" href="registro.html">
-          <i class="bi bi-journal-text"></i><span>Registro de licitaciones</span>
+          <i class="bi bi-journal-text"></i><span>Registro</span>
         </a>
         <a class="nav-link" href="tabulacion.html">
           <i class="bi bi-table"></i><span>Tabulación</span>
-        </a>
-        <a class="nav-link" href="bandeja.html">
-          <i class="bi bi-inbox"></i><span>Bandeja de entrada</span>
-        </a>
-        <a class="nav-link" href="drive.html">
-          <i class="bi bi-cloud"></i><span>Drive</span>
         </a>
         <a class="nav-link" href="reporteria.html">
           <i class="bi bi-bar-chart"></i><span>Reportería</span>
         </a>
         <a class="nav-link" href="subir_procedimientos.html">
-          <i class="bi bi-upload"></i><span>Importador</span>
+          <i class="bi bi-upload"></i><span>Importador de Procedimientos </span>
         </a>
         <a class="nav-link" href="catalogo_codigos_importar.html">
-          <i class="bi bi-list-ul"></i><span>Importar Códigos</span>
+          <i class="bi bi-list-ul"></i><span>Importador de Códigos</span>
+        </a>
+        <a class="nav-link" href="tipo_de_cambio.html">
+          <i class="bi bi-list-ul"></i><span>Importador de Tipo de Cambio.</span>
         </a>
       </nav>
 
@@ -57,9 +54,6 @@
         <div class="container">
           <h1 class="fw-bold">Panel de Gestión BMD</h1>
           <p class="lead text-white-50 mb-4">Centro de control, análisis y herramientas de gestión integral.</p>
-          <button id="btn-ir-reportes" class="btn btn-acento btn-lg">
-            <i class="bi bi-bar-chart-line me-2"></i> Ir a Reportería
-          </button>
         </div>
       </section>
 
@@ -71,19 +65,19 @@
             <div class="col-12 col-md-6 col-lg-4">
               <div class="action-card">
                 <div class="action-icon"><i class="bi bi-cloud-upload"></i></div>
-                <h5 class="action-title">Importador de Procedimientos</h5>
-                <p class="action-desc">Carga masiva de adjudicaciones SICOP y validación de registros.</p>
-                <a href="subir_procedimientos.html" class="btn btn-outline-success w-100">Abrir</a>
+                <h5 class="action-title">Registro de Licitaciones.</h5>
+                <p class="action-desc">Iniciar el registro de una nueva licitación correspondiente a BMD.</p>
+                <a href="registro.html" class="btn btn-outline-success w-100">Abrir</a>
               </div>
             </div>
 
             <!-- Tarjeta 2 -->
             <div class="col-12 col-md-6 col-lg-4">
               <div class="action-card">
-                <div class="action-icon"><i class="bi bi-folder-symlink"></i></div>
-                <h5 class="action-title">Importar Catálogo de Códigos</h5>
-                <p class="action-desc">Carga y vinculación de códigos madre e hijo.</p>
-                <a href="catalogo_codigos_importar.html" class="btn btn-outline-success w-100">Abrir</a>
+                <div class="action-icon"><i class="bi bi-cloud-upload"></i></div>
+                <h5 class="action-title">Tabulación de Licitaciones.</h5>
+                <p class="action-desc">Análisis y depuración de información para la actualización de licitaciones.</p>
+                <a href="tabulacion.html" class="btn btn-outline-success w-100">Abrir</a>
               </div>
             </div>
 
@@ -91,9 +85,39 @@
             <div class="col-12 col-md-6 col-lg-4">
               <div class="action-card">
                 <div class="action-icon"><i class="bi bi-bar-chart-line"></i></div>
-                <h5 class="action-title">Inteligencia de Negocios</h5>
-                <p class="action-desc">Dashboard SICOP y análisis de adjudicaciones.</p>
+                <h5 class="action-title">Reportería</h5>
+                <p class="action-desc">Evaluación general de los reportes e información asociados a las licitaciones.</p>
                 <a href="reporteria.html" class="btn btn-outline-success w-100">Abrir</a>
+              </div>
+            </div>
+
+            <!-- Tarjeta 4 -->
+            <div class="col-12 col-md-6 col-lg-4">
+              <div class="action-card">
+                <div class="action-icon"><i class="bi bi-bar-chart-line"></i></div>
+                <h5 class="action-title">Importador de Procedimientos</h5>
+                <p class="action-desc">Este módulo importa exclusivamente el archivo SICOP de Compras Públicas denominado "Procedimientos Adjudicados".</p>
+                <a href="subir_procedimientos.html" class="btn btn-outline-success w-100">Abrir</a>
+              </div>
+            </div>
+
+            <!-- Tarjeta 5 -->
+            <div class="col-12 col-md-6 col-lg-4">
+              <div class="action-card">
+                <div class="action-icon"><i class="bi bi-bar-chart-line"></i></div>
+                <h5 class="action-title">Importador de Codigos</h5>
+                <p class="action-desc">Este módulo importa únicamente el catálogo de códigos, incorporando un nuevo código de BMD que será utilizado en el sistema..</p>
+                <a href="catalogo_codigos_importar.html" class="btn btn-outline-success w-100">Abrir</a>
+              </div>
+            </div>
+
+            <!-- Tarjeta 6 -->
+            <div class="col-12 col-md-6 col-lg-4">
+              <div class="action-card">
+                <div class="action-icon"><i class="bi bi-bar-chart-line"></i></div>
+                <h5 class="action-title">Importador de Tipo de Cambio</h5>
+                <p class="action-desc">Este módulo importa únicamente el catálogo de tipos de cambio correspondientes al período actual y a los períodos anteriores para su uso en el sistema.</p>
+                <a href="catalogo_codigos_importar.html" class="btn btn-outline-success w-100">Abrir</a>
               </div>
             </div>
 
@@ -106,6 +130,11 @@
   <footer class="text-center text-white-50 py-3 bg-dark border-top border-success-subtle">
     © 2025 BMD Business Partners — Área de Inteligencia y Consultoría
   </footer>
+  
+  <!-- 🔹 Botón flotante para volver al inicio -->
+  <a href="index.html" class="btn-home" title="Ir al inicio">
+    <i class="bi bi-house-fill"></i>
+  </a>
 
   <!-- Scripts -->
   <script src="js/index.js"></script>
