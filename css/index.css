@@ -1,30 +1,12 @@
-/* =========================================================
-   BMD Business Partners - Panel de Gestión
-   Estilos principales para index.html
-   ========================================================= */
-
-/* -------------------- Variables de color -------------------- */
 :root {
   --acento: #0B4912;
   --acento-2: #126a1a;
-  --bg-dark: #0b0f24;
-  --bg-claro: #f6f7fb;
+  --bg-dark: #0B0F24;
+  --borde: rgba(255,255,255,.08);
   --texto-claro: #E8EDF7;
-  --texto-oscuro: #0e1b2a;
-  --borde: rgba(255, 255, 255, .08);
-  --sombra-suave: 0 10px 24px rgba(16, 185, 129, .12);
 }
 
-/* -------------------- Base -------------------- */
-html, body {
-  height: 100%;
-  margin: 0;
-  background: var(--bg-dark);
-  color: var(--texto-claro);
-  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-}
-
-/* -------------------- Sidebar -------------------- */
+/* ======= Sidebar ======= */
 .sidebar {
   background: var(--bg-dark);
   min-width: 260px;
@@ -32,36 +14,54 @@ html, body {
   min-height: 100vh;
   position: sticky;
   top: 0;
-  padding: 1rem;
+  padding: 2.5rem 1.2rem 1rem;
   box-shadow: 0 0 0 1px var(--borde) inset;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  animation: fadeIn .6s ease-in-out;
 }
 
+/* Logo */
 .brand {
   display: flex;
   align-items: center;
-  gap: .6rem;
+  gap: .8rem;
   color: var(--texto-claro);
   text-decoration: none;
   font-weight: 700;
   letter-spacing: .3px;
-  margin-bottom: 0.5rem;
+  margin-bottom: 1.2rem;
+  padding-left: .4rem;
 }
 
 .brand .logo {
-  width: 36px;
-  height: 36px;
-  border-radius: .6rem;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
   background: linear-gradient(135deg, var(--acento), var(--acento-2));
   display: grid;
   place-items: center;
   color: #fff;
   font-size: 1.3rem;
-  box-shadow: 0 6px 12px rgba(11, 73, 18, .35);
+  box-shadow: 0 8px 18px rgba(11,73,18,.35);
+  transition: transform .2s ease, box-shadow .3s ease;
 }
 
+.brand .logo:hover {
+  transform: rotate(8deg) scale(1.05);
+  box-shadow: 0 8px 22px rgba(11,73,18,.45);
+}
+
+/* Divider */
+.divider {
+  border: none;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 1.4rem 0;
+}
+
+/* Menu */
 .menu .nav-link {
   color: var(--texto-claro);
   border-radius: .6rem;
@@ -74,7 +74,7 @@ html, body {
 }
 
 .menu .nav-link:hover {
-  background: rgba(255, 255, 255, .06);
+  background: rgba(255,255,255,.06);
   transform: translateX(3px);
   border-color: var(--borde);
   color: #fff;
@@ -85,66 +85,37 @@ html, body {
   background: linear-gradient(90deg, var(--acento), var(--acento-2) 90%);
   color: #fff;
   border-color: transparent;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, .08) inset;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.08) inset;
 }
 
 .menu .nav-link .bi {
   font-size: 1.05rem;
 }
 
-/* -------------------- Hero -------------------- */
+/* ======= Hero ======= */
 .hero {
-  background: radial-gradient(1000px 600px at 10% -10%, #d9f99d33, transparent 40%),
-              radial-gradient(1000px 600px at 90% -20%, #34d39922, transparent 45%),
-              linear-gradient(180deg, #0b0f24 0%, #0b0f24 40%, #0e132c 100%);
-  color: var(--texto-claro);
-  position: relative;
-  text-align: center;
-  overflow: hidden;
+  background: radial-gradient(1000px 600px at 10% -10%, #d9f99d55, transparent 40%),
+              linear-gradient(180deg, #0b0f24 0%, #0e132c 100%);
 }
 
-.hero h1 {
-  font-weight: 700;
-  letter-spacing: .3px;
-}
-
-.hero p {
-  color: #c7d3e2;
-}
-
-.hero-img {
-  transition: transform .35s ease, box-shadow .35s ease;
-  filter: drop-shadow(0 6px 12px rgba(11, 73, 18, .25));
-}
-
-.hero-img:hover {
-  transform: scale(1.05);
-  box-shadow: 0 12px 28px rgba(11, 73, 18, .35);
-}
-
-/* -------------------- Tarjetas -------------------- */
-.main {
-  background: var(--bg-claro);
-  flex: 1;
-}
-
+/* ======= Tarjetas ======= */
 .action-card {
   border: 1px solid #e9edf3;
   border-radius: 16px;
   padding: 20px;
   background: #fff;
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
   text-align: center;
-  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease, background .12s ease;
-  color: var(--texto-oscuro);
-  height: 100%;
+  color: #0e1b2a;
+  text-decoration: none;
+  display: block;
 }
 
 .action-card:hover {
   transform: translateY(-3px);
-  box-shadow: var(--sombra-suave);
+  box-shadow: 0 10px 24px rgba(16,185,129,.12);
   border-color: #bde5bd;
   text-decoration: none;
-  background: linear-gradient(0deg, #ffffff, #fffefb);
 }
 
 .action-icon {
@@ -157,64 +128,26 @@ html, body {
   color: #fff;
   font-size: 1.6rem;
   margin: 0 auto 12px;
-  box-shadow: 0 8px 22px rgba(11, 73, 18, .25);
+  box-shadow: 0 8px 22px rgba(11,73,18,.25);
 }
 
-.action-title {
-  font-weight: 700;
-  font-size: 1.05rem;
-  margin-bottom: 6px;
-}
+.action-title { font-weight: 700; font-size: 1rem; margin-bottom: 6px; }
+.action-desc { font-size: .9rem; color: #6b7a90; }
 
-.action-desc {
-  font-size: .9rem;
-  color: #6b7a90;
-  min-height: 48px;
-}
-
-.btn-outline-success {
-  border-color: var(--acento);
-  color: var(--acento);
-  font-weight: 600;
-}
-
-.btn-outline-success:hover {
+.btn-acento {
   background: var(--acento);
   color: #fff;
-  border-color: var(--acento);
+  border: none;
+  transition: all .2s ease;
 }
 
-/* -------------------- Footer -------------------- */
-footer {
-  background: #0e132c;
-  color: #96a1b8;
-  text-align: center;
-  padding: 18px 0;
-  font-size: .85rem;
-  border-top: 1px solid rgba(255, 255, 255, .08);
+.btn-acento:hover {
+  filter: brightness(1.08);
+  color: #fff;
 }
 
-/* -------------------- Responsivo -------------------- */
-@media (max-width: 991.98px) {
-  .sidebar {
-    position: fixed;
-    left: 0;
-    top: 0;
-    transform: translateX(-100%);
-    transition: transform .25s ease;
-    z-index: 1050;
-  }
-  .sidebar.show {
-    transform: translateX(0);
-  }
-  .sidebar-backdrop {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, .45);
-    z-index: 1040;
-  }
-  .sidebar-backdrop.show {
-    display: block;
-  }
+/* ======= Animaciones ======= */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
 }

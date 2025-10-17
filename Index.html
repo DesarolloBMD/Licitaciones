@@ -4,16 +4,14 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>BMD — Panel de Gestión</title>
-
-  <!-- Librerías principales -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/>
   <link href="css/index.css" rel="stylesheet"/>
 </head>
 
 <body>
-  <div class="d-flex">
 
+  <div class="d-flex">
     <!-- Sidebar -->
     <aside id="sidebar" class="sidebar">
       <a href="index.html" class="brand">
@@ -21,7 +19,8 @@
         <span>BMD Business Partners</span>
       </a>
 
-      <hr class="my-3" />
+      <hr class="divider" />
+
       <nav class="nav flex-column menu">
         <a class="nav-link active" href="index.html" aria-current="page">
           <i class="bi bi-house-door"></i><span>Inicio</span>
@@ -42,111 +41,104 @@
           <i class="bi bi-list-ul"></i><span>Importador de Códigos</span>
         </a>
         <a class="nav-link" href="tipo_de_cambio.html">
-          <i class="bi bi-currency-exchange"></i><span>Importador de Tipo de Cambio</span>
+          <i class="bi bi-currency-exchange"></i><span>Tipo de Cambio</span>
         </a>
       </nav>
 
-      <hr class="my-3" />
-      <div class="text-white-50 small"><i class="bi bi-shield-lock"></i> Sesión segura</div>
+      <hr class="divider" />
+
+      <div class="text-white-50 small text-center mb-2">
+        <i class="bi bi-shield-lock"></i> Sesión segura
+      </div>
     </aside>
 
     <!-- Contenido principal -->
     <main class="main flex-grow-1">
-
-      <!-- Hero -->
       <section class="hero text-center text-light py-5">
         <div class="container">
-          <div class="mb-4">
-            <img src="Recursos/Logos/logo.png"
-                 alt="BMD Business Partners - Panel de Gestión"
-                 class="img-fluid hero-img shadow-lg rounded-4"
-                 style="max-width: 220px;">
-          </div>
-          <h1 class="fw-bold">Panel de Gestión BMD</h1>
-          <p class="lead text-white-50 mb-4">
-            Centro de control, análisis y herramientas de gestión integral.
-          </p>
+          <img src="Recursos/Logos/logo.png" 
+               alt="BMD Business Partners - Panel de Gestión"
+               class="img-fluid mb-4 hero-img shadow-lg rounded-4" 
+               style="max-width: 180px;">
+          <h1 class="fw-bold mt-2">Panel de Gestión BMD</h1>
+          <p class="lead text-white-50 mb-4">Centro de control, análisis y herramientas de gestión integral.</p>
         </div>
       </section>
 
-      <!-- Tarjetas -->
       <section class="p-4">
         <div class="container">
           <div class="row g-4">
 
-            <!-- Registro -->
+            <!-- Tarjeta 1 -->
             <div class="col-12 col-md-6 col-lg-4">
               <div class="action-card">
-                <div class="action-icon"><i class="bi bi-pencil-square"></i></div>
+                <div class="action-icon"><i class="bi bi-journal-text"></i></div>
                 <h5 class="action-title">Registro de Licitaciones</h5>
-                <p class="action-desc">Registrar una nueva licitación correspondiente a BMD.</p>
-                <a href="registro.html" class="btn btn-outline-success w-100">Abrir</a>
+                <p class="action-desc">Iniciar el registro de una nueva licitación correspondiente a BMD.</p>
+                <a href="registro.html" class="btn btn-acento w-100">Abrir</a>
               </div>
             </div>
 
-            <!-- Tabulación -->
+            <!-- Tarjeta 2 -->
             <div class="col-12 col-md-6 col-lg-4">
               <div class="action-card">
                 <div class="action-icon"><i class="bi bi-table"></i></div>
                 <h5 class="action-title">Tabulación de Licitaciones</h5>
-                <p class="action-desc">Analiza y depura la información de licitaciones activas.</p>
-                <a href="tabulacion.html" class="btn btn-outline-success w-100">Abrir</a>
+                <p class="action-desc">Análisis y depuración de información para la actualización de licitaciones.</p>
+                <a href="tabulacion.html" class="btn btn-acento w-100">Abrir</a>
               </div>
             </div>
 
-            <!-- Reportería -->
+            <!-- Tarjeta 3 -->
             <div class="col-12 col-md-6 col-lg-4">
               <div class="action-card">
                 <div class="action-icon"><i class="bi bi-bar-chart-line"></i></div>
-                <h5 class="action-title">Reportería General</h5>
-                <p class="action-desc">Análisis y visualización de información de licitaciones.</p>
-                <a href="reporteria.html" class="btn btn-outline-success w-100">Abrir</a>
+                <h5 class="action-title">Reportería</h5>
+                <p class="action-desc">Evaluación general de los reportes e información asociados a las licitaciones.</p>
+                <a href="reporteria.html" class="btn btn-acento w-100">Abrir</a>
               </div>
             </div>
 
-            <!-- Procedimientos -->
+            <!-- Tarjeta 4 -->
             <div class="col-12 col-md-6 col-lg-4">
               <div class="action-card">
                 <div class="action-icon"><i class="bi bi-upload"></i></div>
                 <h5 class="action-title">Importador de Procedimientos</h5>
-                <p class="action-desc">Importa el archivo SICOP “Procedimientos Adjudicados”.</p>
-                <a href="subir_procedimientos.html" class="btn btn-outline-success w-100">Abrir</a>
+                <p class="action-desc">Importa el archivo SICOP de Compras Públicas "Procedimientos Adjudicados".</p>
+                <a href="subir_procedimientos.html" class="btn btn-acento w-100">Abrir</a>
               </div>
             </div>
 
-            <!-- Códigos -->
+            <!-- Tarjeta 5 -->
             <div class="col-12 col-md-6 col-lg-4">
               <div class="action-card">
                 <div class="action-icon"><i class="bi bi-list-ul"></i></div>
                 <h5 class="action-title">Importador de Códigos</h5>
-                <p class="action-desc">Carga y administra el catálogo de códigos BMD.</p>
-                <a href="catalogo_codigos_importar.html" class="btn btn-outline-success w-100">Abrir</a>
+                <p class="action-desc">Importa el catálogo de códigos de BMD para clasificación y análisis.</p>
+                <a href="catalogo_codigos_importar.html" class="btn btn-acento w-100">Abrir</a>
               </div>
             </div>
 
-            <!-- Tipo de cambio -->
+            <!-- Tarjeta 6 -->
             <div class="col-12 col-md-6 col-lg-4">
               <div class="action-card">
                 <div class="action-icon"><i class="bi bi-currency-exchange"></i></div>
-                <h5 class="action-title">Importador de Tipo de Cambio</h5>
-                <p class="action-desc">Importa y gestiona los tipos de cambio históricos y actuales.</p>
-                <a href="tipo_de_cambio.html" class="btn btn-outline-success w-100">Abrir</a>
+                <h5 class="action-title">Tipo de Cambio</h5>
+                <p class="action-desc">Carga los tipos de cambio oficiales utilizados en los procesos de conversión.</p>
+                <a href="tipo_de_cambio.html" class="btn btn-acento w-100">Abrir</a>
               </div>
             </div>
 
           </div>
         </div>
       </section>
-
     </main>
   </div>
 
-  <!-- Footer -->
   <footer class="text-center text-white-50 py-3 bg-dark border-top border-success-subtle">
     © 2025 BMD Business Partners — Área de Inteligencia y Consultoría
   </footer>
 
-  <!-- Scripts -->
   <script src="js/index.js"></script>
 </body>
 </html>
