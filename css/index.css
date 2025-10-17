@@ -1,26 +1,32 @@
+/* =========================================================
+   BMD Business Partners - Panel de Gestión
+   Estilos principales para index.html
+   ========================================================= */
+
+/* -------------------- Variables de color -------------------- */
 :root {
   --acento: #0B4912;
   --acento-2: #126a1a;
-  --bg-hero: radial-gradient(1200px 600px at 10% -10%, #d9f99d55, transparent 40%),
-              radial-gradient(1000px 600px at 90% -20%, #34d39933, transparent 45%),
-              linear-gradient(180deg, #0b0f24 0%, #0b0f24 40%, #0e132c 100%);
+  --bg-dark: #0b0f24;
+  --bg-claro: #f6f7fb;
   --texto-claro: #E8EDF7;
-  --borde: rgba(255,255,255,.08);
-  --bg-main: #f6f7fb;
-  --shadow: 0 10px 30px rgba(0,0,0,.1);
+  --texto-oscuro: #0e1b2a;
+  --borde: rgba(255, 255, 255, .08);
+  --sombra-suave: 0 10px 24px rgba(16, 185, 129, .12);
 }
 
-/* General */
-body {
-  background: #0b0f24;
-  color: var(--texto-claro);
+/* -------------------- Base -------------------- */
+html, body {
+  height: 100%;
   margin: 0;
-  font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg-dark);
+  color: var(--texto-claro);
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-/* Sidebar */
+/* -------------------- Sidebar -------------------- */
 .sidebar {
-  background: #0B0F24;
+  background: var(--bg-dark);
   min-width: 260px;
   max-width: 260px;
   min-height: 100vh;
@@ -28,6 +34,9 @@ body {
   top: 0;
   padding: 1rem;
   box-shadow: 0 0 0 1px var(--borde) inset;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .brand {
@@ -38,22 +47,19 @@ body {
   text-decoration: none;
   font-weight: 700;
   letter-spacing: .3px;
-  margin-bottom: .5rem;
+  margin-bottom: 0.5rem;
 }
 
 .brand .logo {
   width: 36px;
   height: 36px;
   border-radius: .6rem;
-  background: var(--acento);
+  background: linear-gradient(135deg, var(--acento), var(--acento-2));
   display: grid;
   place-items: center;
   color: #fff;
   font-size: 1.3rem;
-}
-
-.menu {
-  margin-top: 1rem;
+  box-shadow: 0 6px 12px rgba(11, 73, 18, .35);
 }
 
 .menu .nav-link {
@@ -68,88 +74,77 @@ body {
 }
 
 .menu .nav-link:hover {
-  background: rgba(255,255,255,.06);
-  transform: translateX(2px);
+  background: rgba(255, 255, 255, .06);
+  transform: translateX(3px);
   border-color: var(--borde);
   color: #fff;
   text-decoration: none;
 }
 
-.menu .nav-link.active,
-.menu .nav-link[aria-current="page"] {
+.menu .nav-link.active {
   background: linear-gradient(90deg, var(--acento), var(--acento-2) 90%);
   color: #fff;
   border-color: transparent;
-  box-shadow: 0 0 0 1px rgba(255,255,255,.08) inset;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .08) inset;
 }
 
 .menu .nav-link .bi {
-  opacity: .9;
   font-size: 1.05rem;
 }
 
-.sidebar hr {
-  border-color: var(--borde);
-  opacity: 1;
-}
-
-/* Hero Section */
+/* -------------------- Hero -------------------- */
 .hero {
-  background: var(--bg-hero);
+  background: radial-gradient(1000px 600px at 10% -10%, #d9f99d33, transparent 40%),
+              radial-gradient(1000px 600px at 90% -20%, #34d39922, transparent 45%),
+              linear-gradient(180deg, #0b0f24 0%, #0b0f24 40%, #0e132c 100%);
   color: var(--texto-claro);
+  position: relative;
   text-align: center;
-  padding: 64px 0 84px;
-  box-shadow: var(--shadow);
+  overflow: hidden;
 }
 
 .hero h1 {
   font-weight: 700;
-  letter-spacing: .4px;
-  margin-bottom: 16px;
+  letter-spacing: .3px;
 }
 
 .hero p {
   color: #c7d3e2;
-  max-width: 720px;
-  margin: auto;
 }
 
-.btn-acento {
-  background: linear-gradient(135deg, var(--acento), var(--acento-2));
-  border: none;
-  color: #fff;
-  padding: 10px 22px;
-  border-radius: 10px;
-  font-weight: 600;
-  transition: transform .15s ease, box-shadow .15s ease;
+.hero-img {
+  transition: transform .35s ease, box-shadow .35s ease;
+  filter: drop-shadow(0 6px 12px rgba(11, 73, 18, .25));
 }
 
-.btn-acento:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 24px rgba(16,185,129,.2);
-  color: #fff;
+.hero-img:hover {
+  transform: scale(1.05);
+  box-shadow: 0 12px 28px rgba(11, 73, 18, .35);
 }
 
-/* Cards Section */
+/* -------------------- Tarjetas -------------------- */
+.main {
+  background: var(--bg-claro);
+  flex: 1;
+}
+
 .action-card {
   border: 1px solid #e9edf3;
-  border-radius: 18px;
+  border-radius: 16px;
   padding: 20px;
   background: #fff;
-  color: #0e1b2a;
   text-align: center;
-  transition: all .18s ease;
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease, background .12s ease;
+  color: var(--texto-oscuro);
   height: 100%;
-  box-shadow: 0 8px 18px rgba(0,0,0,.04);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
 }
 
 .action-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 12px 28px rgba(11,73,18,.15);
+  box-shadow: var(--sombra-suave);
   border-color: #bde5bd;
+  text-decoration: none;
+  background: linear-gradient(0deg, #ffffff, #fffefb);
 }
 
 .action-icon {
@@ -162,39 +157,51 @@ body {
   color: #fff;
   font-size: 1.6rem;
   margin: 0 auto 12px;
-  box-shadow: 0 8px 22px rgba(11,73,18,.25);
+  box-shadow: 0 8px 22px rgba(11, 73, 18, .25);
 }
 
 .action-title {
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   margin-bottom: 6px;
 }
 
 .action-desc {
   font-size: .9rem;
   color: #6b7a90;
-  margin-bottom: 1rem;
+  min-height: 48px;
 }
 
-/* Footer */
+.btn-outline-success {
+  border-color: var(--acento);
+  color: var(--acento);
+  font-weight: 600;
+}
+
+.btn-outline-success:hover {
+  background: var(--acento);
+  color: #fff;
+  border-color: var(--acento);
+}
+
+/* -------------------- Footer -------------------- */
 footer {
   background: #0e132c;
   color: #96a1b8;
   text-align: center;
-  padding: 24px 0;
+  padding: 18px 0;
   font-size: .85rem;
-  border-top: 1px solid rgba(255,255,255,.08);
+  border-top: 1px solid rgba(255, 255, 255, .08);
 }
 
-/* Responsivo */
+/* -------------------- Responsivo -------------------- */
 @media (max-width: 991.98px) {
   .sidebar {
     position: fixed;
     left: 0;
     top: 0;
     transform: translateX(-100%);
-    transition: transform .2s ease;
+    transition: transform .25s ease;
     z-index: 1050;
   }
   .sidebar.show {
@@ -204,17 +211,10 @@ footer {
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,.45);
+    background: rgba(0, 0, 0, .45);
     z-index: 1040;
   }
   .sidebar-backdrop.show {
     display: block;
-  }
-  .topbar {
-    position: sticky;
-    top: 0;
-    z-index: 1100;
-    background: #fff;
-    border-bottom: 1px solid #e9edf3;
   }
 }
